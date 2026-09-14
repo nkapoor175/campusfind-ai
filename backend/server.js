@@ -20,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
 
 const adminRoutes = require('./routes/admin.routes');
+const claimRoutes = require('./routes/claim.routes');
 
 // ---------------------------------------------------------------------------
 // Health-check route
@@ -46,6 +47,7 @@ app.get('/api/health', async (_req, res) => {
 // API Routes
 // ---------------------------------------------------------------------------
 app.use('/api/admin', adminRoutes);
+app.use('/api/claims', claimRoutes);
 
 // ---------------------------------------------------------------------------
 // Start server

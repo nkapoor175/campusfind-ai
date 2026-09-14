@@ -20,6 +20,7 @@ ALTER TABLE STUDENT AUTO_INCREMENT = 1;
 ALTER TABLE ADMIN AUTO_INCREMENT = 1;
 ALTER TABLE LOST_ITEM AUTO_INCREMENT = 1;
 ALTER TABLE FOUND_ITEM AUTO_INCREMENT = 1;
+ALTER TABLE CLAIM AUTO_INCREMENT = 1;
 
 -- 1. Seed Students
 INSERT INTO STUDENT (Name, Email, Phone, Department, Year, Hostel, Password) VALUES
@@ -42,3 +43,8 @@ INSERT INTO FOUND_ITEM (ItemName, Category, Brand, Color, Description, DateFound
 ('Keys with Blue Keychain', 'Keys', NULL, 'Silver', 'Bunch of 3 keys with a blue dragon keychain', '2026-09-12', 'Academic Block A Room 102', 'Open', 2, NULL),
 ('Calculators Casio FX-991EX', 'Electronics', 'Casio', 'Black', 'Scientific calculator with name initials AP', '2026-09-13', 'Lecture Hall 3', 'Open', 1, NULL),
 ('Grey Earbuds Case', 'Electronics', 'Realme', 'Grey', 'Empty charging case for wireless earbuds', '2026-09-09', 'Auditorium', 'Open', 2, 1);
+
+-- 5. Seed Claims
+INSERT INTO CLAIM (ClaimDate, ClaimStatus, VerificationNotes, StudentID, FoundID, AdminID) VALUES
+('2026-09-13 10:00:00', 'Pending', NULL, 1, 1, NULL),
+('2026-09-13 11:30:00', 'Approved', 'Verified student ownership via serial number', 2, 3, 1);

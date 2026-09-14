@@ -19,6 +19,8 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded files statically
 app.use('/uploads', express.static('uploads'));
 
+const adminRoutes = require('./routes/admin.routes');
+
 // ---------------------------------------------------------------------------
 // Health-check route
 // ---------------------------------------------------------------------------
@@ -39,6 +41,11 @@ app.get('/api/health', async (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// ---------------------------------------------------------------------------
+// API Routes
+// ---------------------------------------------------------------------------
+app.use('/api/admin', adminRoutes);
 
 // ---------------------------------------------------------------------------
 // Start server

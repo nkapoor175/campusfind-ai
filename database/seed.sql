@@ -21,6 +21,8 @@ ALTER TABLE ADMIN AUTO_INCREMENT = 1;
 ALTER TABLE LOST_ITEM AUTO_INCREMENT = 1;
 ALTER TABLE FOUND_ITEM AUTO_INCREMENT = 1;
 ALTER TABLE CLAIM AUTO_INCREMENT = 1;
+ALTER TABLE `MATCH` AUTO_INCREMENT = 1;
+ALTER TABLE NOTIFICATION AUTO_INCREMENT = 1;
 
 -- 1. Seed Students
 INSERT INTO STUDENT (Name, Email, Phone, Department, Year, Hostel, Password) VALUES
@@ -48,3 +50,12 @@ INSERT INTO FOUND_ITEM (ItemName, Category, Brand, Color, Description, DateFound
 INSERT INTO CLAIM (ClaimDate, ClaimStatus, VerificationNotes, StudentID, FoundID, AdminID) VALUES
 ('2026-09-13 10:00:00', 'Pending', NULL, 1, 1, NULL),
 ('2026-09-13 11:30:00', 'Approved', 'Verified student ownership via serial number', 2, 3, 1);
+
+-- 6. Seed Matches (Sample matches created by match service)
+INSERT INTO `MATCH` (MatchDate, MatchStatus, MatchScore, LostID, FoundID) VALUES
+('2026-09-14 12:00:00', 'Pending', 88.50, 1, 2);
+
+-- 7. Seed Notifications
+INSERT INTO NOTIFICATION (Message, Date, ReadStatus, StudentID, MatchID) VALUES
+('Potential match found for your Blue HP Laptop with 88.50% confidence score.', '2026-09-14 12:01:00', false, 1, 1),
+('Your claim for Grey Earbuds Case has been approved.', '2026-09-13 11:31:00', true, 2, NULL);

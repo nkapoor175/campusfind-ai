@@ -21,6 +21,7 @@ app.use('/uploads', express.static('uploads'));
 
 const adminRoutes = require('./routes/admin.routes');
 const claimRoutes = require('./routes/claim.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 // ---------------------------------------------------------------------------
 // Health-check route
@@ -48,6 +49,7 @@ app.get('/api/health', async (_req, res) => {
 // ---------------------------------------------------------------------------
 app.use('/api/admin', adminRoutes);
 app.use('/api/claims', claimRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ---------------------------------------------------------------------------
 // Start server

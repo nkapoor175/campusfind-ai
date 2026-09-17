@@ -46,16 +46,25 @@ INSERT INTO FOUND_ITEM (ItemName, Category, Brand, Color, Description, DateFound
 ('Calculators Casio FX-991EX', 'Electronics', 'Casio', 'Black', 'Scientific calculator with name initials AP', '2026-09-13', 'Lecture Hall 3', 'Open', 1, NULL),
 ('Grey Earbuds Case', 'Electronics', 'Realme', 'Grey', 'Empty charging case for wireless earbuds', '2026-09-09', 'Auditorium', 'Open', 2, 1);
 
--- 5. Seed Claims
+-- 5. Seed Lost Item Images (URL paths only)
+INSERT INTO LOST_ITEM_IMAGE (LostID, ImageURL) VALUES
+(1, '/uploads/lost/sample-hp-laptop-1.jpg'),
+(1, '/uploads/lost/sample-hp-laptop-2.jpg');
+
+-- 6. Seed Found Item Images (URL paths only)
+INSERT INTO FOUND_ITEM_IMAGE (FoundID, ImageURL) VALUES
+(1, '/uploads/found/sample-keys-1.jpg');
+
+-- 7. Seed Claims
 INSERT INTO CLAIM (ClaimDate, ClaimStatus, VerificationNotes, StudentID, FoundID, AdminID) VALUES
 ('2026-09-13 10:00:00', 'Pending', NULL, 1, 1, NULL),
 ('2026-09-13 11:30:00', 'Approved', 'Verified student ownership via serial number', 2, 3, 1);
 
--- 6. Seed Matches (Sample matches created by match service)
+-- 8. Seed Matches (Sample matches created by match service)
 INSERT INTO `MATCH` (MatchDate, MatchStatus, MatchScore, LostID, FoundID) VALUES
 ('2026-09-14 12:00:00', 'Pending', 88.50, 1, 2);
 
--- 7. Seed Notifications
+-- 9. Seed Notifications
 INSERT INTO NOTIFICATION (Message, Date, ReadStatus, StudentID, MatchID) VALUES
 ('Potential match found for your Blue HP Laptop with 88.50% confidence score.', '2026-09-14 12:01:00', false, 1, 1),
 ('Your claim for Grey Earbuds Case has been approved.', '2026-09-13 11:31:00', true, 2, NULL);

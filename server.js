@@ -26,6 +26,7 @@ app.use('/api/matches', require('./routes/match'));
 app.use('/api/uploads', require('./routes/upload.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
+app.use('/api/claims', require('./routes/claim.routes'));
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

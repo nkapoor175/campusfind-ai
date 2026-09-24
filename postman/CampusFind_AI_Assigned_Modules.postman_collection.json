@@ -1,0 +1,607 @@
+{
+  "info": {
+    "_postman_id": "campusfind-assigned-modules-v1",
+    "name": "CampusFind AI – Assigned Modules Test Suite",
+    "description": "Comprehensive API test collection covering assigned modules: Image Upload, Admin, Claim, Notification, Image Similarity Python microservice, and all core endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:5000", "type": "string"},
+    {"key": "mlUrl", "value": "http://localhost:8000", "type": "string"},
+    {"key": "authToken", "value": "", "type": "string"},
+    {"key": "studentId", "value": "1", "type": "string"},
+    {"key": "lostId", "value": "1", "type": "string"},
+    {"key": "foundId", "value": "1", "type": "string"},
+    {"key": "claimId", "value": "1", "type": "string"},
+    {"key": "notificationId", "value": "1", "type": "string"},
+    {"key": "matchId", "value": "1", "type": "string"}
+  ],
+  "item": [
+    {
+      "name": "Student",
+      "item": [
+        {
+          "name": "Register Student",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"1234567890\",\n  \"department\": \"CSE\",\n  \"year\": \"3\",\n  \"hostel\": \"A1\",\n  \"password\": \"Password123\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "students", "register"]
+            },
+            "description": "Register a new student"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 201', function () {", "    pm.response.to.have.status(201);", "});"]}
+          }]
+        },
+        {
+          "name": "Login Student",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"Password123\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "students", "login"]
+            },
+            "description": "Login and obtain JWT"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Token saved', function () {",
+              "    var json = pm.response.json();",
+              "    pm.collectionVariables.set('authToken', json.token);",
+              "});"
+            ]}
+          }]
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/students/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "students", "me"]
+            },
+            "description": "Get current student's profile"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Lost Item",
+      "item": [
+        {
+          "name": "Create Lost Item",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itemName\": \"Laptop\",\n  \"category\": \"Electronics\",\n  \"brand\": \"HP\",\n  \"color\": \"Silver\",\n  \"description\": \"15 inch laptop\",\n  \"dateLost\": \"2023-09-01\",\n  \"lostLocation\": \"Library\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/lost-items",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lost-items"]
+            },
+            "description": "Create a lost item report"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 201', function () {", "    pm.response.to.have.status(201);", "});"]}
+          }]
+        },
+        {
+          "name": "List Lost Items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/lost-items",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lost-items"]
+            },
+            "description": "List all lost items"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Get Lost Items by Student",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/lost-items/student/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lost-items", "student", "{{studentId}}"]
+            },
+            "description": "List lost items for a student"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Get Lost Item by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/lost-items/{{lostId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "lost-items", "{{lostId}}"]
+            },
+            "description": "Get a lost item"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Found Item",
+      "item": [
+        {
+          "name": "Create Found Item",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itemName\": \"Laptop\",\n  \"category\": \"Electronics\",\n  \"brand\": \"HP\",\n  \"color\": \"Silver\",\n  \"description\": \"Found a laptop\",\n  \"dateFound\": \"2023-09-02\",\n  \"foundLocation\": \"Cafeteria\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/found-items",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "found-items"]
+            },
+            "description": "Create a found item report"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 201', function () {", "    pm.response.to.have.status(201);", "});"]}
+          }]
+        },
+        {
+          "name": "List Found Items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/found-items",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "found-items"]
+            },
+            "description": "List all found items"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Get Found Items by Student",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/found-items/student/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "found-items", "student", "{{studentId}}"]
+            },
+            "description": "List found items for a student"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Get Found Item by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/found-items/{{foundId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "found-items", "{{foundId}}"]
+            },
+            "description": "Get a found item"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Match",
+      "item": [
+        {
+          "name": "Get Match Candidates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/candidates/{{lostId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "matches", "candidates", "{{lostId}}"]
+            },
+            "description": "Get candidate found items for a lost item"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Create Match",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lostId\": {{lostId}},\n  \"foundId\": {{foundId}}\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "matches"]
+            },
+            "description": "Create a match record"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 201', function () {", "    pm.response.to.have.status(201);", "});"]}
+          }]
+        },
+        {
+          "name": "List Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "matches"]
+            },
+            "description": "List all matches"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Get Match by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "matches", "{{matchId}}"]
+            },
+            "description": "Get a match record"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Update Match Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"},
+              {"key": "Content-Type", "value": "application/json", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Confirmed\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/matches/{{matchId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "matches", "{{matchId}}", "status"]
+            },
+            "description": "Update match status"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Pending Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "pending"]
+            },
+            "description": "Fetch all unverified reports"
+          }
+        },
+        {
+          "name": "Verify Lost Item Report",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminId\": 1\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lost/{{lostId}}/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "lost", "{{lostId}}", "verify"]
+            },
+            "description": "Mark a lost item as verified"
+          }
+        },
+        {
+          "name": "Verify Found Item Report",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminId\": 1\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/found/{{foundId}}/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "found", "{{foundId}}", "verify"]
+            },
+            "description": "Mark a found item as verified"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Claim",
+      "item": [
+        {
+          "name": "Create Claim",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": {{studentId}},\n  \"foundId\": {{foundId}}\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims"]
+            },
+            "description": "Submit ownership claim"
+          }
+        },
+        {
+          "name": "Get Claims by Student",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/claims/student/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims", "student", "{{studentId}}"]
+            },
+            "description": "List claims for a student"
+          }
+        },
+        {
+          "name": "Get Claims by Found Item",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/claims/found/{{foundId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims", "found", "{{foundId}}"]
+            },
+            "description": "List claims for a found item"
+          }
+        },
+        {
+          "name": "Update Claim Status",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminId\": 1,\n  \"claimStatus\": \"Approved\",\n  \"verificationNotes\": \"Verified\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/claims/{{claimId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims", "{{claimId}}", "status"]
+            },
+            "description": "Admin updates claim status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notification",
+      "item": [
+        {
+          "name": "Get Student Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/student/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "student", "{{studentId}}"]
+            },
+            "description": "Fetch notifications"
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "{{notificationId}}", "read"]
+            },
+            "description": "Mark as read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Image Upload",
+      "item": [
+        {
+          "name": "Upload Lost Item Images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {"mode": "formdata","formdata":[{"key":"images","type":"file","src":""}]},
+            "url": {"raw": "{{baseUrl}}/api/uploads/lost/{{lostId}}","host":["{{baseUrl}}"],"path":["api","uploads","lost","{{lostId}}"]},
+            "description": "Upload images for lost item"
+          }
+        },
+        {
+          "name": "Upload Found Item Images",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {"mode": "formdata","formdata":[{"key":"images","type":"file","src":""}]},
+            "url": {"raw": "{{baseUrl}}/api/uploads/found/{{foundId}}","host":["{{baseUrl}}"],"path":["api","uploads","found","{{foundId}}"]},
+            "description": "Upload images for found item"
+          }
+        },
+        {
+          "name": "Get Lost Item Images",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/api/uploads/lost/{{lostId}}","host":["{{baseUrl}}"],"path":["api","uploads","lost","{{lostId}}"]},
+            "description": "List images for lost item"
+          }
+        },
+        {
+          "name": "Get Found Item Images",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/api/uploads/found/{{foundId}}","host":["{{baseUrl}}"],"path":["api","uploads","found","{{foundId}}"]},
+            "description": "List images for found item"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Image Similarity",
+      "item": [
+        {
+          "name": "ML Service Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{mlUrl}}/health","host":["{{mlUrl}}"],"path":["health"]},
+            "description": "Check ML service health"
+          }
+        },
+        {
+          "name": "Compare Image Files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {"mode": "formdata","formdata":[{"key":"image1","type":"file","src":""},{"key":"image2","type":"file","src":""}]},
+            "url": {"raw": "{{mlUrl}}/compare-images","host":["{{mlUrl}}"],"path":["compare-images"]},
+            "description": "Compare two uploaded images"
+          }
+        },
+        {
+          "name": "Compare Image URLs",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "body": {"mode": "raw","raw": "{\n  \"image1_url\": \"{{baseUrl}}/uploads/lost/sample.jpg\",\n  \"image2_url\": \"{{baseUrl}}/uploads/found/sample.jpg\"\n}","options": {"raw": {"language": "json"}}},
+            "url": {"raw": "{{mlUrl}}/compare-image-urls","host":["{{mlUrl}}"],"path":["compare-image-urls"]},
+            "description": "Compare images via URLs"
+          }
+        },
+        {
+          "name": "Extract Image Features",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {"mode": "formdata","formdata":[{"key":"image","type":"file","src":""}]},
+            "url": {"raw": "{{mlUrl}}/extract-features","host":["{{mlUrl}}"],"path":["extract-features"]},
+            "description": "Extract feature vector"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Backend Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/health","host":["{{baseUrl}}"],"path":["health"]},
+            "description": "Backend health"
+          }
+        }
+      ]
+    }
+  ]
+}

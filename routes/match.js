@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const authenticate = require('../middleware/auth');
 const { scoreMatch } = require('../services/matchService');
+const { createMatchNotification } = require('../services/notification.service');
 
 const router = express.Router();
 
@@ -91,6 +92,10 @@ router.get('/:id', async (req, res) => {
 });
 
 // PATCH /api/matches/:id/status - update match status (authed)
+// On transition to 'Confirmed', fires a notification to both the student who
+// lost the item and the student who found it. Notification creation failure
+// does NOT roll back the status update - the match itself is the source of
+// truth; a missed notification is a lesser failure than losing the match update.
 router.patch('/:id/status', authenticate, async (req, res) => {
     const { status } = req.body;
     const validStatuses = ['Pending', 'Confirmed', 'Rejected'];
@@ -104,10 +109,43 @@ router.patch('/:id/status', authenticate, async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Match record not found' });
         }
+        const match = rows[0];
+        const wasAlreadyConfirmed = match.MatchStatus === 'Confirmed';
 
         await pool.query('UPDATE MATCH_RECORD SET MatchStatus = ? WHERE MatchID = ?', [status, req.params.id]);
 
         const [updated] = await pool.query('SELECT * FROM MATCH_RECORD WHERE MatchID = ?', [req.params.id]);
+
+        // Fire notifications only on the transition INTO Confirmed, not on every
+        // PATCH call, so re-confirming or updating other fields doesn't spam duplicates.
+        if (status === 'Confirmed' && !wasAlreadyConfirmed) {
+            try {
+                const [[lostItem]] = await pool.query(
+                    'SELECT StudentID, ItemName FROM LOST_ITEM WHERE LostID = ?', [match.LostID]
+                );
+                const [[foundItem]] = await pool.query(
+                    'SELECT StudentID, ItemName FROM FOUND_ITEM WHERE FoundID = ?', [match.FoundID]
+                );
+
+                if (lostItem) {
+                    await createMatchNotification(
+                        match.MatchID,
+                        lostItem.StudentID,
+                        `Good news! A potential match was found for your lost item "${lostItem.ItemName}".`
+                    );
+                }
+                if (foundItem) {
+                    await createMatchNotification(
+                        match.MatchID,
+                        foundItem.StudentID,
+                        `Someone may be claiming the item you found: "${foundItem.ItemName}".`
+                    );
+                }
+            } catch (notifyErr) {
+                console.error('Failed to create match notifications:', notifyErr);
+            }
+        }
+
         return res.status(200).json(updated[0]);
     } catch (err) {
         console.error('Update match status error:', err);

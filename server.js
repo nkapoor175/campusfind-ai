@@ -24,6 +24,7 @@ app.use('/api/lost-items', require('./routes/lostItem'));
 app.use('/api/found-items', require('./routes/foundItem'));
 app.use('/api/matches', require('./routes/match'));
 app.use('/api/uploads', require('./routes/upload.routes'));
+app.use('/api/admin', require('./routes/admin.routes'));
 
 const PORT = process.env.PORT || 5000;
 

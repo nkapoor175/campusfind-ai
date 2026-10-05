@@ -1,0 +1,301 @@
+/* ==========================================================================
+   CampusFind AI — Design Tokens & Core Stylesheet
+   Aesthetic: Cute, illustrated, playful campus lost-and-found with
+   warm coral/terracotta, soft peach, cream off-white & gentle organic shapes.
+   ========================================================================== */
+
+:root {
+  /* Color Palette */
+  --coral-500: #E06D53;
+  --coral-600: #C9563E;
+  --coral-400: #E9856F;
+  --coral-100: #FDEEEA;
+  --coral-50:  #FFF6F3;
+
+  --peach-500: #F4A261;
+  --peach-400: #F7B882;
+  --peach-200: #FCE8DB;
+  --peach-100: #FEF4ED;
+
+  --cream-bg:  #FAF7F2;
+  --cream-card:#FFFFFF;
+  --cream-soft:#F3EDE4;
+  --cream-subtle:#F7F2EA;
+
+  --sage-600:  #537B5B;
+  --sage-500:  #6D9775;
+  --sage-200:  #DCEAE0;
+  --sage-100:  #EEF5F0;
+
+  --dusty-blue-600: #466E82;
+  --dusty-blue-500: #5D859A;
+  --dusty-blue-200: #D8E7EE;
+  --dusty-blue-100: #ECF3F7;
+
+  --sunflower-500: #E39D38;
+  --sunflower-200: #FBEBCB;
+  --sunflower-100: #FEF8EC;
+
+  --charcoal-900: #1E222D;
+  --charcoal-800: #2C3240;
+  --charcoal-600: #4E5667;
+  --charcoal-400: #7E8696;
+  --charcoal-200: #C2C8D2;
+
+  --border-subtle: #EFE9DF;
+  --border-warm:   #E4DACB;
+  --border-focus:  #E06D53;
+
+  /* Typography */
+  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body:    'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Radii */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 30px;
+  --radius-pill: 9999px;
+  --radius-blob-1: 28px 20px 24px 28px;
+  --radius-blob-2: 22px 30px 26px 20px;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(44, 30, 25, 0.04);
+  --shadow-md: 0 8px 24px -2px rgba(44, 30, 25, 0.06), 0 2px 6px -1px rgba(44, 30, 25, 0.04);
+  --shadow-lg: 0 16px 38px -4px rgba(44, 30, 25, 0.09), 0 4px 12px -2px rgba(44, 30, 25, 0.04);
+  --shadow-coral: 0 10px 26px -3px rgba(224, 109, 83, 0.28);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.03);
+
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-spring: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--cream-bg);
+  color: var(--charcoal-800);
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(244, 162, 97, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 85% 65%, rgba(224, 109, 83, 0.04) 0%, transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(109, 151, 117, 0.04) 0%, transparent 35%);
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Typography styles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--charcoal-900);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+h1 { font-size: clamp(2rem, 4vw, 2.75rem); }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
+h3 { font-size: clamp(1.2rem, 2.2vw, 1.45rem); }
+h4 { font-size: 1.15rem; }
+
+p {
+  color: var(--charcoal-600);
+  margin-bottom: 0.5rem;
+}
+
+a {
+  color: var(--coral-500);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--coral-600);
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Layout helpers */
+.app-container {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.main-content {
+  flex: 1;
+  padding-bottom: 3.5rem;
+}
+
+/* Page transitions */
+.fade-in {
+  animation: fadeIn 0.35s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Cute Floating Animation */
+@keyframes cuteFloat {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(1.5deg); }
+}
+
+@keyframes cuteFloatReverse {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(6px) rotate(-1.5deg); }
+}
+
+.animate-float {
+  animation: cuteFloat 5s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: cuteFloatReverse 6s ease-in-out infinite;
+}
+
+/* Cute Pulse */
+@keyframes softPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.92; }
+}
+
+.animate-soft-pulse {
+  animation: softPulse 3s ease-in-out infinite;
+}
+
+/* Doodle & Blob Borders */
+.blob-card-1 {
+  border-radius: var(--radius-blob-1);
+}
+
+.blob-card-2 {
+  border-radius: var(--radius-blob-2);
+}
+
+/* Interactive elements */
+.pressable {
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--transition-spring), box-shadow var(--transition-normal);
+}
+
+.pressable:hover {
+  transform: translateY(-2px);
+}
+
+.pressable:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--cream-soft);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--coral-400);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--coral-500);
+}
+
+/* Grid systems */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .items-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.badge-coral {
+  background-color: var(--coral-100);
+  color: var(--coral-600);
+  border: 1px solid rgba(224, 109, 83, 0.2);
+}
+
+.badge-peach {
+  background-color: var(--peach-200);
+  color: #A35A1E;
+  border: 1px solid rgba(244, 162, 97, 0.3);
+}
+
+.badge-sage {
+  background-color: var(--sage-100);
+  color: var(--sage-600);
+  border: 1px solid rgba(109, 151, 117, 0.25);
+}
+
+.badge-blue {
+  background-color: var(--dusty-blue-100);
+  color: var(--dusty-blue-600);
+  border: 1px solid rgba(93, 133, 154, 0.25);
+}
+
+.badge-yellow {
+  background-color: var(--sunflower-100);
+  color: #925E12;
+  border: 1px solid rgba(227, 157, 56, 0.3);
+}
+
+.badge-charcoal {
+  background-color: var(--cream-soft);
+  color: var(--charcoal-600);
+  border: 1px solid var(--border-warm);
+}

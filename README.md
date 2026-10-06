@@ -40,27 +40,41 @@ This creates the `campusfind_ai` database with all 9 tables and loads demo data 
 
 > Seed passwords are plain placeholder strings, not bcrypt hashes — they exist to populate FK relationships for testing item/match endpoints. Log in with real accounts via `/api/students/register`, which hashes on the way in.
 
-### 3. Python text-similarity service (optional)
+### 3. Python text-similarity service (optional) — port 8000
 
-```bash
+Use Python 3.11 or 3.12 (the pinned packages and PyTorch don't have builds for 3.14 yet). On Windows PowerShell:
+
+```powershell
 cd python-service
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn main:app --port 8000
 ```
 
 If this service isn't running, the Node match endpoints automatically fall back to a local weighted string-comparison scorer — nothing breaks, matching just gets less accurate.
 
-### 4. Image Similarity service
+### 4. Image Similarity service (optional) — port 8001
 
-The Image Similarity service is a separate FastAPI service located in `ml-service/`:
+The Image Similarity service is a separate FastAPI service located in `ml-service/`. It runs on **8001** so it doesn't clash with the text service on 8000:
 
-```bash
+```powershell
 cd ml-service
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --host 127.0.0.1 --port 8000
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001
 ```
+
+`GET http://localhost:8001/health` reports which engine is active (`PyTorch MobileNetV3`, or `NumPy/PIL Feature Extractor` if PyTorch isn't installed).
+
+### 5. Run everything (3 terminals)
+
+| Terminal | Folder | Command | Port |
+|---|---|---|---|
+| 1 | repo root | `npm start` | 5000 |
+| 2 | `python-service/` | `.\.venv\Scripts\python.exe -m uvicorn main:app --port 8000` | 8000 |
+| 3 | `ml-service/` | `.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001` | 8001 |
+
+Terminals 2 and 3 are optional: the backend works without them and falls back to the built-in scorer.
 
 ## Environment Variables
 
@@ -78,6 +92,7 @@ Defined in `.env.example`:
 | `DB_NAME` | MySQL database name | `campusfind_ai` |
 | `JWT_SECRET` | Secret key used to sign and verify JSON Web Tokens | `replace_with_a_long_random_string` |
 | `TEXT_SIMILARITY_URL` | URL of the Python text similarity microservice | `http://localhost:8000/similarity` |
+| `ML_SIMILARITY_URL` | Base URL of the Python image similarity microservice | `http://localhost:8001` |
 
 ### Postman Variables
 
@@ -86,7 +101,7 @@ Configured in the Postman collection:
 | Variable | Description | Value |
 |---|---|---|
 | `baseUrl` | Base URL for the Node.js backend | `http://localhost:5000` |
-| `mlUrl` | Base URL for the separate Image Similarity service | `http://localhost:8000` |
+| `mlUrl` | Base URL for the separate Image Similarity service | `http://localhost:8001` |
 | `authToken` | JWT Bearer token obtained from login | *(dynamically set)* |
 
 ## Authentication
@@ -223,15 +238,16 @@ Instructions:
 3. Import the collection into Postman.
 4. Verify collection variables:
    - `baseUrl = http://localhost:5000`
-   - `mlUrl = http://localhost:8000`
+   - `mlUrl = http://localhost:8001`
 5. Run the Login request under Auth to authenticate; the returned JWT is automatically set as `authToken`.
 
 ### Image Similarity Tests
 
 Run the test script:
 
-```bash
-python3 ml-service/test_service.py
+```powershell
+cd ml-service
+.\.venv\Scripts\python.exe test_service.py
 ```
 
 ## Conventions

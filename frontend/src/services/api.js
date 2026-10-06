@@ -150,10 +150,14 @@ export const api = {
 
   async createLostItem(itemData) {
     try {
-      return await request('/api/lost-items', {
+      const created = await request('/api/lost-items', {
         method: 'POST',
         body: JSON.stringify(itemData),
       });
+      if (itemData.imagePreview) {
+        created.imageUrl = itemData.imagePreview;
+      }
+      return created;
     } catch {
       const newId = localLostItems.length + 1;
       const newItem = {
@@ -215,10 +219,14 @@ export const api = {
 
   async createFoundItem(itemData) {
     try {
-      return await request('/api/found-items', {
+      const created = await request('/api/found-items', {
         method: 'POST',
         body: JSON.stringify(itemData),
       });
+      if (itemData.imagePreview) {
+        created.imageUrl = itemData.imagePreview;
+      }
+      return created;
     } catch {
       const newId = localFoundItems.length + 1;
       const newItem = {
@@ -453,9 +461,17 @@ export const api = {
         headers: getAuthHeader(),
         body: formData,
       });
-      return await res.json();
+      const data = await res.json();
+      if (res.ok && data?.images?.[0]?.ImageURL) {
+        const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
+        if (item) item.imageUrl = data.images[0].ImageURL;
+      }
+      return data;
     } catch {
-      return { message: 'Image uploaded locally', fileUrl: URL.createObjectURL(file) };
+      const localUrl = URL.createObjectURL(file);
+      const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
+      if (item) item.imageUrl = localUrl;
+      return { message: 'Image uploaded locally', fileUrl: localUrl };
     }
   },
 
@@ -468,9 +484,125 @@ export const api = {
         headers: getAuthHeader(),
         body: formData,
       });
-      return await res.json();
+      const data = await res.json();
+      if (res.ok && data?.images?.[0]?.ImageURL) {
+        const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
+        if (item) item.imageUrl = data.images[0].ImageURL;
+      }
+      return data;
     } catch {
-      return { message: 'Image uploaded locally', fileUrl: URL.createObjectURL(file) };
+      const localUrl = URL.createObjectURL(file);
+      const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
+      if (item) item.imageUrl = localUrl;
+      return { message: 'Image uploaded locally', fileUrl: localUrl };
+    }
+  },
+
+  async getLostItemImages(lostId) {
+    try {
+      return await request(`/api/uploads/lost/${lostId}`);
+    } catch {
+      const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
+      return item?.imageUrl ? [{ ImageURL: item.imageUrl }] : [];
+    }
+  },
+
+  async getFoundItemImages(foundId) {
+    try {
+      return await request(`/api/uploads/found/${foundId}`);
+    } catch {
+      const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
+      return item?.imageUrl ? [{ ImageURL: item.imageUrl }] : [];
+    }
+  },
+
+  // ---------------- ML IMAGE SIMILARITY SERVICE ----------------
+  async checkMlHealth() {
+    try {
+      const res = await fetch('/ml/health');
+      if (res.ok) {
+        return await res.json();
+      }
+      return { status: 'offline' };
+    } catch {
+      return { status: 'offline' };
+    }
+  },
+
+  /**
+   * Compares two images using the FastAPI ml-service if running.
+   * If both are URLs, calls /ml/compare-image-urls
+   * If both are files/blobs/dataURLs, calls /ml/compare-images
+   * If service is offline or unsupported format, returns available: false without inventing a fake score.
+   */
+  async compareImages(img1, img2) {
+    try {
+      if (!img1 || !img2) {
+        return { available: false, reason: 'Both items must have photos' };
+      }
+
+      // Check if both are remote http URLs
+      const isHttp1 = typeof img1 === 'string' && (img1.startsWith('http://') || img1.startsWith('https://'));
+      const isHttp2 = typeof img2 === 'string' && (img2.startsWith('http://') || img2.startsWith('https://'));
+
+      if (isHttp1 && isHttp2) {
+        const res = await fetch('/ml/compare-image-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image1_url: img1, image2_url: img2 }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            available: true,
+            similarityScore: data.similarityScore, // actual score from PyTorch/NumPy
+            confidence: data.confidence,
+            featureVectorDim: data.featureVectorDim,
+          };
+        }
+      }
+
+      // If data URLs or files, convert to Blob and call /ml/compare-images
+      const toBlob = async (src) => {
+        if (src instanceof Blob || src instanceof File) return src;
+        if (typeof src === 'string' && (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('/'))) {
+          const fetched = await fetch(src);
+          return await fetched.blob();
+        }
+        return null;
+      };
+
+      const [blob1, blob2] = await Promise.all([toBlob(img1), toBlob(img2)]);
+      if (blob1 && blob2) {
+        const formData = new FormData();
+        formData.append('image1', blob1, 'lost_item.jpg');
+        formData.append('image2', blob2, 'found_item.jpg');
+
+        const res = await fetch('/ml/compare-images', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            available: true,
+            similarityScore: data.similarityScore,
+            confidence: data.confidence,
+            featureVectorDim: data.featureVectorDim,
+          };
+        }
+      }
+
+      return {
+        available: false,
+        reason: 'Image similarity service offline or endpoint unavailable',
+      };
+    } catch (err) {
+      return {
+        available: false,
+        reason: err.message,
+      };
     }
   },
 

@@ -192,6 +192,21 @@ export const INITIAL_FOUND_ITEMS = [
     AdminID: null, // Pending admin verification
     studentName: 'Parthvi Sharma',
     imageUrl: null,
+  },
+  {
+    FoundID: 6,
+    ItemName: 'Black Backpack',
+    Category: 'Bags & Backpacks',
+    Brand: 'Wildcraft',
+    Color: 'Black',
+    Description: 'Black backpack found near sports pavilion bench, padded straps and side water bottle pocket',
+    DateFound: '2026-09-17',
+    FoundLocation: 'Sports Complex Bench',
+    Status: 'Open',
+    StudentID: 1,
+    AdminID: 1,
+    studentName: 'Navika Kapoor',
+    imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=600&q=80',
   }
 ];
 

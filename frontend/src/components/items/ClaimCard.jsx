@@ -4,6 +4,7 @@ import Card from '../common/Card';
 import StatusBadge from '../common/StatusBadge';
 import Button from '../common/Button';
 import { getCategoryIllustration } from '../../assets/illustrations/IllustratedIcons';
+import { getItemImageUrl } from '../../utils/imageUrl';
 
 export default function ClaimCard({
   claim,
@@ -38,7 +39,15 @@ export default function ClaimCard({
         onClick={() => onViewItem && onViewItem(found, 'found')}
       >
         <div className="claim-item-thumb">
-          {getCategoryIllustration(found.Category, 42)}
+          {getItemImageUrl(found) ? (
+            <img
+              src={getItemImageUrl(found)}
+              alt={found.ItemName}
+              className="claim-thumb-img"
+            />
+          ) : (
+            getCategoryIllustration(found.Category, 42)
+          )}
         </div>
         <div className="claim-item-text">
           <span className="claim-item-sub">Claimed Found Item</span>
@@ -176,6 +185,16 @@ export default function ClaimCard({
         }
         .claim-item-thumb {
           flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .claim-thumb-img {
+          width: 44px;
+          height: 44px;
+          border-radius: var(--radius-md);
+          object-fit: cover;
+          border: 1px solid var(--border-warm);
         }
         .claim-item-text {
           flex: 1;

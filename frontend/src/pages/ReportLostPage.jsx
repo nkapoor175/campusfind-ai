@@ -25,6 +25,8 @@ export default function ReportLostPage({ onNavigate }) {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState('idle');
+  const [uploadError, setUploadError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,11 +37,15 @@ export default function ReportLostPage({ onNavigate }) {
   const handleImageSelected = (file, previewUrl) => {
     setSelectedFile(file);
     setImagePreview(previewUrl);
+    setUploadStatus('idle');
+    setUploadError('');
   };
 
   const handleImageRemoved = () => {
     setSelectedFile(null);
     setImagePreview(null);
+    setUploadStatus('idle');
+    setUploadError('');
   };
 
   const handleSubmit = async (e) => {
@@ -52,6 +58,10 @@ export default function ReportLostPage({ onNavigate }) {
     }
 
     setLoading(true);
+    if (selectedFile) {
+      setUploadStatus('uploading');
+    }
+
     try {
       const createdItem = await api.createLostItem({
         itemName: formData.itemName,
@@ -69,15 +79,20 @@ export default function ReportLostPage({ onNavigate }) {
       if (selectedFile && createdItem?.LostID) {
         try {
           await api.uploadLostImage(createdItem.LostID, selectedFile);
+          setUploadStatus('success');
         } catch (uploadErr) {
           console.warn('Image upload note:', uploadErr);
+          setUploadStatus('error');
+          setUploadError(uploadErr.message || 'Image upload failed');
         }
       }
 
       toast.success('Lost item report created! AI is now actively scanning campus matches.');
-      onNavigate('dashboard');
+      onNavigate('lost-items');
     } catch (err) {
       setError(err.message || 'Failed to submit lost item report');
+      setUploadStatus('error');
+      setUploadError(err.message || 'Submission failed');
       toast.error('Failed to submit report');
     } finally {
       setLoading(false);
@@ -185,6 +200,8 @@ export default function ReportLostPage({ onNavigate }) {
               imagePreview={imagePreview}
               onImageSelected={handleImageSelected}
               onImageRemoved={handleImageRemoved}
+              uploadStatus={uploadStatus}
+              uploadError={uploadError}
               label="Item Photo (Optional)"
               helperText="Upload a photo of the item or a similar reference image to assist AI feature matching."
             />

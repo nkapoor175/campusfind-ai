@@ -1,8 +1,9 @@
 import React from 'react';
-import { MapPin, Calendar, Tag, Sparkles, User } from 'lucide-react';
+import { MapPin, Calendar, Tag, Sparkles, User, Camera } from 'lucide-react';
 import Card from '../common/Card';
 import StatusBadge from '../common/StatusBadge';
-import { getCategoryIllustration } from '../../assets/illustrations/IllustratedIcons';
+import ItemVisual from '../common/ItemVisual';
+import { hasUploadedPhoto } from '../../utils/imageUrl';
 
 export default function ItemCard({
   item,
@@ -15,6 +16,7 @@ export default function ItemCard({
   const itemId = isLost ? item.LostID : item.FoundID;
   const dateVal = isLost ? item.DateLost : item.DateFound;
   const locVal = isLost ? item.LostLocation : item.FoundLocation;
+  const hasPhoto = hasUploadedPhoto(item);
 
   return (
     <Card
@@ -23,24 +25,27 @@ export default function ItemCard({
       onClick={() => onClick(item)}
       className="item-card-component fade-in"
     >
-      {/* Thumbnail Header Area */}
+      {/* Thumbnail Header Area: Always displays cute category-specific illustration on listing board */}
       <div className="item-card-media">
-        {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.ItemName} className="item-card-photo" />
-        ) : (
-          <div className="item-card-illustration-wrap">
-            {getCategoryIllustration(item.Category, 76, 'item-card-svg')}
-          </div>
-        )}
+        <div className="item-card-illustration-wrap">
+          <ItemVisual item={item} context="listing" size={76} className="item-card-svg" />
+        </div>
 
         {/* Top Badges */}
         <div className="item-card-top-badges">
           <StatusBadge status={item.Status} />
-          {hasMatch && (
-            <span className="match-pill-indicator animate-soft-pulse">
-              <Sparkles size={12} /> {matchScore ? `${Math.round(matchScore * 100)}% Match` : 'Match ✨'}
-            </span>
-          )}
+          <div className="top-badges-right">
+            {hasPhoto && (
+              <span className="photo-indicator-chip" title="Photograph attached (View in Details)">
+                <Camera size={11} /> Photo
+              </span>
+            )}
+            {hasMatch && (
+              <span className="match-pill-indicator animate-soft-pulse">
+                <Sparkles size={12} /> {matchScore ? `${Math.round(matchScore * 100)}% Match` : 'Match ✨'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -114,11 +119,6 @@ export default function ItemCard({
           justify-content: center;
           overflow: hidden;
         }
-        .item-card-photo {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
         .item-card-illustration-wrap {
           display: flex;
           align-items: center;
@@ -137,6 +137,25 @@ export default function ItemCard({
           justify-content: space-between;
           align-items: center;
           pointer-events: none;
+        }
+        .top-badges-right {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+        .photo-indicator-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(4px);
+          color: var(--charcoal-700);
+          border: 1px solid var(--border-warm);
+          padding: 0.2rem 0.5rem;
+          border-radius: var(--radius-pill);
+          font-size: 0.72rem;
+          font-weight: 700;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
         }
         .match-pill-indicator {
           display: inline-flex;

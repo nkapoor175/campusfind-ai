@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Sparkles, Check, X, ArrowRight, MapPin, Calendar, CheckCircle2 } from 'lucide-react';
 import Card from '../common/Card';
 import StatusBadge from '../common/StatusBadge';
 import Button from '../common/Button';
-import { getCategoryIllustration } from '../../assets/illustrations/IllustratedIcons';
+import ItemVisual from '../common/ItemVisual';
 
 export default function MatchCard({
   match,
@@ -15,7 +15,7 @@ export default function MatchCard({
 }) {
   const lost = match.lostItem || {};
   const found = match.foundItem || {};
-  const scorePercent = Math.round((match.score || 0.85) * 100);
+  const scorePercent = match.score ? Math.round(match.score * 100) : null;
 
   const getScoreColor = (pct) => {
     if (pct >= 85) return 'var(--sage-500)';
@@ -44,11 +44,19 @@ export default function MatchCard({
           </div>
         </div>
 
-        <div className="match-score-pill" style={{ borderColor: getScoreColor(scorePercent) }}>
-          <span className="match-score-num" style={{ color: getScoreColor(scorePercent) }}>
-            {scorePercent}%
-          </span>
-          <span className="match-score-label">Confidence</span>
+        <div className="match-score-pill" style={{ borderColor: scorePercent ? getScoreColor(scorePercent) : 'var(--peach-400)' }}>
+          {scorePercent !== null ? (
+            <>
+              <span className="match-score-num" style={{ color: getScoreColor(scorePercent) }}>
+                {scorePercent}%
+              </span>
+              <span className="match-score-label">Confidence</span>
+            </>
+          ) : (
+            <span className="match-score-label" style={{ color: 'var(--coral-500)', fontWeight: 800 }}>
+              AI Match ✨
+            </span>
+          )}
         </div>
       </div>
 
@@ -62,7 +70,13 @@ export default function MatchCard({
           <span className="item-role-tag lost">Lost Item #{lost.LostID || match.LostID}</span>
           <div className="match-item-content">
             <div className="match-item-icon">
-              {getCategoryIllustration(lost.Category, 46)}
+              <ItemVisual
+                item={lost}
+                context="match"
+                size={46}
+                imgClassName="match-thumb-img"
+                alt={lost.ItemName}
+              />
             </div>
             <div className="match-item-details">
               <h5 className="match-item-name">{lost.ItemName || 'Lost Item'}</h5>
@@ -91,7 +105,13 @@ export default function MatchCard({
           <span className="item-role-tag found">Found Item #{found.FoundID || match.FoundID}</span>
           <div className="match-item-content">
             <div className="match-item-icon">
-              {getCategoryIllustration(found.Category, 46)}
+              <ItemVisual
+                item={found}
+                context="match"
+                size={46}
+                imgClassName="match-thumb-img"
+                alt={found.ItemName}
+              />
             </div>
             <div className="match-item-details">
               <h5 className="match-item-name">{found.ItemName || 'Found Item'}</h5>
@@ -267,6 +287,16 @@ export default function MatchCard({
         }
         .match-item-icon {
           flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .match-thumb-img {
+          width: 48px;
+          height: 48px;
+          border-radius: var(--radius-md);
+          object-fit: cover;
+          border: 1px solid var(--border-warm);
         }
         .match-item-details {
           overflow: hidden;

@@ -14,6 +14,11 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+      },
+      '/ml': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ml/, ''),
       }
     }
   }

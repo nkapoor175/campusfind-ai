@@ -25,6 +25,8 @@ export default function ReportFoundPage({ onNavigate }) {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState('idle');
+  const [uploadError, setUploadError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,11 +37,15 @@ export default function ReportFoundPage({ onNavigate }) {
   const handleImageSelected = (file, previewUrl) => {
     setSelectedFile(file);
     setImagePreview(previewUrl);
+    setUploadStatus('idle');
+    setUploadError('');
   };
 
   const handleImageRemoved = () => {
     setSelectedFile(null);
     setImagePreview(null);
+    setUploadStatus('idle');
+    setUploadError('');
   };
 
   const handleSubmit = async (e) => {
@@ -52,6 +58,10 @@ export default function ReportFoundPage({ onNavigate }) {
     }
 
     setLoading(true);
+    if (selectedFile) {
+      setUploadStatus('uploading');
+    }
+
     try {
       const createdItem = await api.createFoundItem({
         itemName: formData.itemName,
@@ -68,15 +78,20 @@ export default function ReportFoundPage({ onNavigate }) {
       if (selectedFile && createdItem?.FoundID) {
         try {
           await api.uploadFoundImage(createdItem.FoundID, selectedFile);
+          setUploadStatus('success');
         } catch (uploadErr) {
           console.warn('Image upload note:', uploadErr);
+          setUploadStatus('error');
+          setUploadError(uploadErr.message || 'Image upload failed');
         }
       }
 
       toast.success('Thank you! Found item logged and added to campus registry.');
-      onNavigate('dashboard');
+      onNavigate('found-items');
     } catch (err) {
       setError(err.message || 'Failed to submit found item report');
+      setUploadStatus('error');
+      setUploadError(err.message || 'Submission failed');
       toast.error('Failed to submit report');
     } finally {
       setLoading(false);
@@ -177,6 +192,8 @@ export default function ReportFoundPage({ onNavigate }) {
               imagePreview={imagePreview}
               onImageSelected={handleImageSelected}
               onImageRemoved={handleImageRemoved}
+              uploadStatus={uploadStatus}
+              uploadError={uploadError}
               label="Photo of Found Item"
               helperText="Snap a picture of the item right where it was found."
             />

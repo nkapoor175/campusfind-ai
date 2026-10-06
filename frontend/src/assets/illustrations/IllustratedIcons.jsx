@@ -278,35 +278,148 @@ export const MatchSparkleIllustration = ({ size = 80, className = '' }) => (
   </svg>
 );
 
+export const ClothingIllustration = ({ size = 64, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <ellipse cx="50" cy="92" rx="28" ry="5" fill="#44261C" fillOpacity="0.08" />
+    {/* Hanger / neck collar */}
+    <path d="M38 22C42 16 58 16 62 22" stroke="#C9563E" strokeWidth="3" strokeLinecap="round" />
+    {/* Hoodie / Sweater body */}
+    <path d="M34 24L16 38L24 50L32 44V86H68V44L76 50L84 38L66 24C60 28 40 28 34 24Z" fill="#E06D53" />
+    {/* Chest color block / stripe */}
+    <path d="M32 42H68V58H32V42Z" fill="#F4A261" />
+    {/* Front kangaroo pouch */}
+    <path d="M38 64H62V78C62 82 58 84 50 84C42 84 38 82 38 78V64Z" fill="#FCE8DB" />
+    {/* Pouch pocket stitch lines */}
+    <line x1="42" y1="68" x2="58" y2="68" stroke="#E06D53" strokeWidth="2" strokeDasharray="2 2" strokeLinecap="round" />
+    {/* Ribbed bottom hem */}
+    <rect x="32" y="82" width="36" height="5" rx="2" fill="#C9563E" />
+    {/* Ribbed cuff left and right */}
+    <rect x="18" y="44" width="7" height="6" rx="2" fill="#C9563E" transform="rotate(-35 18 44)" />
+    <rect x="76" y="48" width="7" height="6" rx="2" fill="#C9563E" transform="rotate(35 76 48)" />
+    {/* Cute star badge */}
+    <circle cx="50" cy="50" r="4.5" fill="#FAF7F2" />
+    <path d="M50 48L51 50L53 50.5L51.5 52L52 54L50 53L48 54L48.5 52L47 50.5L49 50L50 48Z" fill="#E39D38" />
+    {/* Subtle highlight */}
+    <path d="M36 28L40 32" stroke="#FAF7F2" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.6" />
+  </svg>
+);
+
+export const GeneralItemIllustration = ({ size = 64, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <ellipse cx="50" cy="92" rx="30" ry="5" fill="#44261C" fillOpacity="0.08" />
+    {/* Lost and found package / mystery box */}
+    <rect x="24" y="38" width="52" height="50" rx="12" fill="#FAF7F2" stroke="#E4DACB" strokeWidth="2" />
+    {/* Lid / Top border */}
+    <rect x="20" y="32" width="60" height="14" rx="7" fill="#E06D53" />
+    {/* Ribbon vertical */}
+    <rect x="46" y="32" width="8" height="56" fill="#F4A261" />
+    {/* Bow on top */}
+    <circle cx="50" cy="30" r="5" fill="#E39D38" />
+    <path d="M48 30C40 24 38 34 46 32" stroke="#E39D38" strokeWidth="3" strokeLinecap="round" fill="none" />
+    <path d="M52 30C60 24 62 34 54 32" stroke="#E39D38" strokeWidth="3" strokeLinecap="round" fill="none" />
+    {/* Tag attached */}
+    <rect x="56" y="52" width="18" height="24" rx="4" fill="#6D9775" />
+    <circle cx="65" cy="56" r="2" fill="#FAF7F2" />
+    {/* Question / Sparkle on tag */}
+    <text x="65" y="70" fill="#FAF7F2" fontSize="11" fontWeight="bold" textAnchor="middle" fontFamily="sans-serif">?</text>
+    {/* Sparkles floating */}
+    <path d="M78 22L79 17L80 22L85 23L80 24L79 29L78 24L73 23L78 22Z" fill="#E39D38" />
+    <circle cx="22" cy="26" r="3" fill="#F4A261" />
+    <circle cx="78" cy="74" r="2.5" fill="#6D9775" />
+  </svg>
+);
+
 /**
- * Returns the matching illustrated SVG component for a given category.
+ * Returns the matching cute illustrated SVG component for a given category.
+ * Preserves the warm, consistent CampusFind AI visual identity across all listings.
  */
 export function getCategoryIllustration(category, size = 48, className = '') {
-  const cat = (category || '').toLowerCase();
-  if (cat.includes('bag') || cat.includes('backpack')) {
+  const cat = (category || '').toLowerCase().trim();
+
+  // Bags & Backpacks
+  if (cat.includes('bag') || cat.includes('backpack') || cat.includes('tote') || cat.includes('luggage')) {
     return <BackpackIllustration size={size} className={className} />;
   }
-  if (cat.includes('bottle') || cat.includes('drink') || cat.includes('flask')) {
+
+  // Accessories (Bottles, flasks, jewelry, watches, etc.)
+  if (
+    cat.includes('bottle') ||
+    cat.includes('drink') ||
+    cat.includes('flask') ||
+    cat.includes('water') ||
+    cat.includes('accessory') ||
+    cat.includes('accessories') ||
+    cat.includes('watch')
+  ) {
     return <WaterBottleIllustration size={size} className={className} />;
   }
-  if (cat.includes('earphone') || cat.includes('headphone') || cat.includes('audio')) {
+
+  // Electronics (Earphones, phones, mobile, calculator, chargers)
+  if (cat.includes('earphone') || cat.includes('headphone') || cat.includes('audio') || cat.includes('airpod')) {
     return <HeadphonesIllustration size={size} className={className} />;
   }
+  if (
+    cat.includes('phone') ||
+    cat.includes('mobile') ||
+    cat.includes('electronic') ||
+    cat.includes('calculator') ||
+    cat.includes('laptop') ||
+    cat.includes('charger') ||
+    cat.includes('gadget')
+  ) {
+    return <PhoneIllustration size={size} className={className} />;
+  }
+
+  // Keys
   if (cat.includes('key')) {
     return <KeysIllustration size={size} className={className} />;
   }
-  if (cat.includes('book') || cat.includes('note') || cat.includes('study')) {
+
+  // Books & Stationery
+  if (
+    cat.includes('book') ||
+    cat.includes('stationery') ||
+    cat.includes('note') ||
+    cat.includes('study') ||
+    cat.includes('pen') ||
+    cat.includes('pencil') ||
+    cat.includes('file')
+  ) {
     return <BooksIllustration size={size} className={className} />;
   }
-  if (cat.includes('phone') || cat.includes('mobile') || cat.includes('electronics')) {
-    return <PhoneIllustration size={size} className={className} />;
-  }
-  if (cat.includes('id') || cat.includes('card') || cat.includes('wallet')) {
+
+  // Documents & Cards
+  if (
+    cat.includes('id') ||
+    cat.includes('card') ||
+    cat.includes('document') ||
+    cat.includes('wallet') ||
+    cat.includes('lanyard') ||
+    cat.includes('license')
+  ) {
     return <IDCardIllustration size={size} className={className} />;
   }
+
+  // Clothing
+  if (
+    cat.includes('cloth') ||
+    cat.includes('jacket') ||
+    cat.includes('hoodie') ||
+    cat.includes('shirt') ||
+    cat.includes('sweater') ||
+    cat.includes('wear') ||
+    cat.includes('cap') ||
+    cat.includes('hat') ||
+    cat.includes('shoe')
+  ) {
+    return <ClothingIllustration size={size} className={className} />;
+  }
+
+  // Umbrella
   if (cat.includes('umbrella') || cat.includes('rain')) {
     return <UmbrellaIllustration size={size} className={className} />;
   }
-  // Default cute backpack illustration
-  return <BackpackIllustration size={size} className={className} />;
+
+  // Others / General Fallback
+  return <GeneralItemIllustration size={size} className={className} />;
 }

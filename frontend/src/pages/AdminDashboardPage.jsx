@@ -18,6 +18,7 @@ import StatusBadge from '../components/common/StatusBadge';
 import EmptyState from '../components/common/EmptyState';
 import LoadingState from '../components/common/LoadingState';
 import { getCategoryIllustration } from '../assets/illustrations/IllustratedIcons';
+import { getItemImageUrl } from '../utils/imageUrl';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -181,7 +182,11 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
                 {pendingLost.map((item) => (
                   <div key={item.LostID} className="queue-item-row fade-in">
                     <div className="queue-thumb">
-                      {getCategoryIllustration(item.Category, 42)}
+                      {getItemImageUrl(item) ? (
+                        <img src={getItemImageUrl(item)} alt={item.ItemName} className="queue-thumb-img" />
+                      ) : (
+                        getCategoryIllustration(item.Category, 42)
+                      )}
                     </div>
                     <div className="queue-info">
                       <h4
@@ -233,7 +238,11 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
                 {pendingFound.map((item) => (
                   <div key={item.FoundID} className="queue-item-row fade-in">
                     <div className="queue-thumb">
-                      {getCategoryIllustration(item.Category, 42)}
+                      {getItemImageUrl(item) ? (
+                        <img src={getItemImageUrl(item)} alt={item.ItemName} className="queue-thumb-img" />
+                      ) : (
+                        getCategoryIllustration(item.Category, 42)
+                      )}
                     </div>
                     <div className="queue-info">
                       <h4
@@ -449,6 +458,16 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
         }
         .queue-thumb {
           flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .queue-thumb-img {
+          width: 42px;
+          height: 42px;
+          border-radius: var(--radius-md);
+          object-fit: cover;
+          border: 1px solid var(--border-warm);
         }
         .queue-info {
           flex: 1;

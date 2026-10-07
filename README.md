@@ -93,6 +93,7 @@ Defined in `.env.example`:
 | `JWT_SECRET` | Secret key used to sign and verify JSON Web Tokens | `replace_with_a_long_random_string` |
 | `TEXT_SIMILARITY_URL` | URL of the Python text similarity microservice | `http://localhost:8000/similarity` |
 | `ML_SIMILARITY_URL` | Base URL of the Python image similarity microservice | `http://localhost:8001` |
+| `AUTO_MATCH_THRESHOLD` | Minimum score (0 to 1) for a pair to get an automatic Pending match | `0.7` |
 
 ### Postman Variables
 
@@ -122,6 +123,15 @@ Authentication is handled via JWT bearer tokens.
 On protected routes, the student's identity is derived directly from `req.user.studentId` in the decoded token.
 
 > **Note:** The Admin, Claim, Notification, and Image Upload endpoints currently do not enforce JWT.
+
+## Automatic Matching
+
+When a student reports a lost or found item (and again after photos are uploaded for it), the backend looks for likely matches in the background:
+
+- It compares the item with every **open** item of the opposite type reported by a **different student** (found items that already have a Confirmed match are skipped).
+- Pairs scoring at or above `AUTO_MATCH_THRESHOLD` (default `0.7`) are ranked, and the **top 3** get a `Pending` match record. Both students are notified, with the percentage shown in the message text only. The score is never stored.
+- It is idempotent (re-running never creates a duplicate pair) and never affects the HTTP response of the request that triggered it. If the text service is down, the built-in stub scorer is used.
+- Matches are still reviewed by a person: `PATCH /api/matches/:id/status` confirms or rejects them.
 
 ## API Reference
 

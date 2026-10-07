@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const authenticate = require('../middleware/auth');
+const { runAutoMatchForLostItem } = require('../services/autoMatchService');
 
 const router = express.Router();
 
@@ -20,7 +21,11 @@ router.post('/', authenticate, async (req, res) => {
         );
 
         const [rows] = await pool.query('SELECT * FROM LOST_ITEM WHERE LostID = ?', [result.insertId]);
-        return res.status(201).json(rows[0]);
+        res.status(201).json(rows[0]);
+
+        // Look for matching found items in the background; the response above never waits on it.
+        runAutoMatchForLostItem(rows[0].LostID).catch(console.error);
+        return;
     } catch (err) {
         console.error('Create lost item error:', err);
         return res.status(500).json({ error: 'Failed to create lost item' });

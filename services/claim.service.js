@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { createNotification } = require('./notification.service');
 
 /**
  * File a claim for a found item
@@ -123,7 +124,7 @@ async function updateClaimStatus(claimId, adminId, claimStatus, verificationNote
 
   // Check if claim exists
   const [claimRows] = await pool.execute(
-    'SELECT ClaimID FROM CLAIM WHERE ClaimID = ?',
+    'SELECT ClaimID, ClaimStatus, StudentID, FoundID FROM CLAIM WHERE ClaimID = ?',
     [claimId]
   );
   if (claimRows.length === 0) {
@@ -131,25 +132,83 @@ async function updateClaimStatus(claimId, adminId, claimStatus, verificationNote
     error.statusCode = 404;
     throw error;
   }
+  const claim = claimRows[0];
 
   const notes = (verificationNotes !== undefined && verificationNotes !== null)
     ? String(verificationNotes).trim()
     : null;
 
-  // Update claim
-  await pool.execute(
-    `UPDATE CLAIM 
-     SET ClaimStatus = ?, VerificationNotes = ?, AdminID = ? 
-     WHERE ClaimID = ?`,
-    [claimStatus, notes, adminId, claimId]
-  );
+  // Claim update and item status changes must succeed or fail together
+  const connection = await pool.getConnection();
+  let updatedClaim;
+  let itemName = null;
+  try {
+    await connection.beginTransaction();
 
-  const [updatedRows] = await pool.execute(
-    'SELECT * FROM CLAIM WHERE ClaimID = ?',
-    [claimId]
-  );
+    // Lock the found item row so two approvals can't both succeed
+    const [foundRows] = await connection.execute(
+      'SELECT ItemName, Status FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE',
+      [claim.FoundID]
+    );
+    itemName = foundRows[0].ItemName;
 
-  return updatedRows[0];
+    if (claimStatus === 'Approved' && ['Claimed', 'Returned'].includes(foundRows[0].Status)) {
+      const error = new Error('Found item has already been claimed or returned');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    // Update claim
+    await connection.execute(
+      `UPDATE CLAIM
+       SET ClaimStatus = ?, VerificationNotes = ?, AdminID = ?
+       WHERE ClaimID = ?`,
+      [claimStatus, notes, adminId, claimId]
+    );
+
+    // Approval hands the item over: found item becomes Claimed, and the lost
+    // report it was confirmed against (if any) is closed.
+    if (claimStatus === 'Approved') {
+      await connection.execute(
+        "UPDATE FOUND_ITEM SET Status = 'Claimed' WHERE FoundID = ?",
+        [claim.FoundID]
+      );
+      await connection.execute(
+        `UPDATE LOST_ITEM SET Status = 'Closed'
+         WHERE LostID IN (
+           SELECT LostID FROM MATCH_RECORD WHERE FoundID = ? AND MatchStatus = 'Confirmed'
+         )`,
+        [claim.FoundID]
+      );
+    }
+
+    const [updatedRows] = await connection.execute(
+      'SELECT * FROM CLAIM WHERE ClaimID = ?',
+      [claimId]
+    );
+    updatedClaim = updatedRows[0];
+
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+
+  // Tell the claimant about the decision. A failed notification must not undo it.
+  if (claim.ClaimStatus !== claimStatus) {
+    try {
+      await createNotification(
+        claim.StudentID,
+        `Your claim on "${itemName}" was ${claimStatus.toLowerCase()}.`
+      );
+    } catch (notifyErr) {
+      console.error('Failed to create claim notification:', notifyErr);
+    }
+  }
+
+  return updatedClaim;
 }
 
 module.exports = {

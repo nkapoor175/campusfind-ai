@@ -13,34 +13,57 @@ This project implements the complete CampusFind AI backend, covering student aut
 
 ## Setup
 
-### 1. Node backend
+You need Node.js 18 or newer (the backend uses the built-in `fetch`), a MySQL 8 database, and optionally Python 3.11 or 3.12 for the two AI services.
+
+### 1. Install and configure
 
 ```bash
 npm install
-cp .env.example .env
-npm start
+cp .env.example .env      # PowerShell: Copy-Item .env.example .env
 ```
 
-Confirm the server is up:
-
-```bash
-curl http://localhost:5000/health
-```
-
-Should return `{"status":"ok","db":"connected"}`.
+Then edit `.env` and set the database values (see [Database hosting](#database-hosting-local-mysql-or-railway) below) and a long random `JWT_SECRET`. `.env` is gitignored; never commit it.
 
 ### 2. Database
 
+No `mysql` command-line client is needed. The repo includes a small runner that uses the credentials in `.env`:
+
 ```bash
-mysql -u root -p < sql/schema.sql
-mysql -u root -p < sql/seed.sql
+node scripts/run-sql.js sql/schema.sql
+node scripts/run-sql.js sql/seed.sql
 ```
 
-This creates the `campusfind_ai` database with all 9 tables and loads demo data (3 students, 2 lost items, 2 found items, 2 pending matches).
+This creates the `campusfind_ai` database with all 9 tables and loads demo data (3 students, 1 admin, 2 lost items, 2 found items, 2 pending matches).
 
-> Seed passwords are plain placeholder strings, not bcrypt hashes — they exist to populate FK relationships for testing item/match endpoints. Log in with real accounts via `/api/students/register`, which hashes on the way in.
+> **`schema.sql` drops and recreates every table.** `run-sql.js` therefore refuses to run any file containing `DROP TABLE` against a database that already has rows, and lists the tables that would be wiped. Pass `--allow-drop` only if you really want that data gone. Schema changes for a database that already has data go in `sql/migrations/` instead.
 
-### 3. Python text-similarity service (optional) — port 8000
+> Seed passwords are plain placeholder strings, not bcrypt hashes, so **seeded students cannot log in**. They exist to populate foreign keys for testing. Create real accounts with `POST /api/students/register`, which hashes passwords with bcrypt. The seeded admin is `AdminID 1` (`admin@campus.edu`); the admin endpoints currently take `adminId` in the request body.
+
+### Database hosting: local MySQL or Railway
+
+The backend only cares about the five `DB_*` values in `.env`, so the same code runs against either.
+
+**Local MySQL:** install MySQL 8, start it, then use `DB_HOST=127.0.0.1`, `DB_PORT=3306`, your `DB_USER` / `DB_PASSWORD`, and `DB_NAME=campusfind_ai`.
+
+**Railway MySQL:**
+
+1. In Railway, open your project, click the MySQL service, then open **Variables** (or **Settings → Networking → TCP Proxy**).
+2. Copy `RAILWAY_TCP_PROXY_DOMAIN` into `DB_HOST` and `RAILWAY_TCP_PROXY_PORT` into `DB_PORT`. The password shown for the service goes into `DB_PASSWORD`.
+3. Keep `DB_NAME=campusfind_ai`. Do **not** use Railway's default `railway` database: `schema.sql` creates and uses `campusfind_ai`.
+4. Do **not** use `mysql.railway.internal` from your own computer. That hostname only resolves inside Railway; from outside you must use the public TCP proxy domain.
+5. Run the two `run-sql.js` commands above once to create the tables.
+
+> Railway trial credit runs out. For a final submission, use a database that will still be running on demo day (local MySQL on the demo machine, or a hosted MySQL). Moving is a `.env` change plus re-running the two SQL files.
+
+### 3. Start the backend
+
+```bash
+npm start
+```
+
+Confirm the server is up by opening http://localhost:5000/health in a browser (in PowerShell, `curl` is an alias for something else; use `Invoke-RestMethod http://localhost:5000/health`). It should return `{"status":"ok","db":"connected"}`.
+
+### 4. Python text-similarity service (optional) — port 8000
 
 Use Python 3.11 or 3.12 (the pinned packages and PyTorch don't have builds for 3.14 yet). On Windows PowerShell:
 
@@ -53,7 +76,7 @@ py -3.12 -m venv .venv
 
 If this service isn't running, the Node match endpoints automatically fall back to a local weighted string-comparison scorer — nothing breaks, matching just gets less accurate.
 
-### 4. Image Similarity service (optional) — port 8001
+### 5. Image Similarity service (optional) — port 8001
 
 The Image Similarity service is a separate FastAPI service located in `ml-service/`. It runs on **8001** so it doesn't clash with the text service on 8000:
 
@@ -66,7 +89,9 @@ py -3.12 -m venv .venv
 
 `GET http://localhost:8001/health` reports which engine is active (`PyTorch MobileNetV3`, or `NumPy/PIL Feature Extractor` if PyTorch isn't installed).
 
-### 5. Run everything (3 terminals)
+### 6. Run everything (3 terminals)
+
+Make sure MySQL is running first, then:
 
 | Terminal | Folder | Command | Port |
 |---|---|---|---|
@@ -74,7 +99,23 @@ py -3.12 -m venv .venv
 | 2 | `python-service/` | `.\.venv\Scripts\python.exe -m uvicorn main:app --port 8000` | 8000 |
 | 3 | `ml-service/` | `.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8001` | 8001 |
 
-Terminals 2 and 3 are optional: the backend works without them and falls back to the built-in scorer.
+Terminals 2 and 3 are optional: the backend works without them. Without the text service it uses the built-in string scorer; without the image service it scores on text only.
+
+### 7. Smoke test
+
+With the backend running (and ideally both Python services), run the whole flow end to end:
+
+```bash
+npm run smoke
+```
+
+It registers two fresh users, reports a lost and a found item, has the seeded admin verify them, checks candidate scores, waits for the automatic match, confirms it, files and approves a claim, and checks every status and notification along the way. Each check prints `PASS` or `FAIL`; the exit code is non-zero if anything fails. By default it deletes everything it created. To leave the data in place for a demo (it prints the two test logins), run:
+
+```bash
+npm run smoke -- --keep
+```
+
+It expects the seeded admin (`AdminID 1`); set `SMOKE_ADMIN_ID` or `SMOKE_BASE_URL` in the environment to override the admin id or server address.
 
 ## Environment Variables
 
@@ -146,6 +187,33 @@ When a student reports a lost or found item (and again after photos are uploaded
 - Pairs scoring at or above `AUTO_MATCH_THRESHOLD` (default `0.7`, using the final score described above, so matching photos can lift a pair over the line) are ranked, and the **top 3** get a `Pending` match record. Both students are notified, with the percentage shown in the message text only. The score is never stored.
 - It is idempotent (re-running never creates a duplicate pair) and never affects the HTTP response of the request that triggered it. If the text service is down, the built-in stub scorer is used.
 - Matches are still reviewed by a person: `PATCH /api/matches/:id/status` confirms or rejects them.
+
+## Status Lifecycle
+
+Item and match statuses change automatically as a report moves through the system:
+
+| Record | Status | How it changes |
+|---|---|---|
+| Lost item | `Open` | Default when reported. Only `Open` lost items can get new matches. |
+| | `Matched` | One of its matches is **Confirmed**. Goes back to `Open` if that match is moved to Pending/Rejected and no other Confirmed match exists. |
+| | `Closed` | A claim on its Confirmed found item is **Approved**. |
+| Found item | `Open` | Default when reported. Only `Open` found items without a Confirmed match can get new matches. |
+| | `Claimed` | A claim on it is **Approved**. |
+| | `Returned` | Exists in the schema, but no endpoint sets it yet. |
+| Match | `Pending` | Created automatically or with `POST /api/matches`. |
+| | `Confirmed` / `Rejected` | Set with `PATCH /api/matches/:id/status`. |
+| Claim | `Pending` | Filed with `POST /api/claims`. |
+| | `Approved` / `Rejected` | Set with `PUT /api/claims/:id/status`. Approving is refused with `409` if the found item is already `Claimed` or `Returned`. |
+
+Rules that return `409 Conflict`: creating a match for an item that is not `Open`, for a found item that already has a Confirmed match, or for a pair that already exists; confirming a match whose items are no longer open or whose found item already has another Confirmed match; approving a claim on an already claimed or returned item.
+
+Notifications are created for these events (a failed notification never undoes the action that triggered it):
+
+| Event | Who is notified | `MatchID` |
+|---|---|---|
+| Automatic match found | The lost owner and the finder | the new match |
+| Match confirmed | The lost owner and the finder | the match |
+| Claim approved or rejected | The student who filed the claim | none |
 
 ## API Reference
 
@@ -252,18 +320,22 @@ The schema defines 9 tables:
 
 ## Testing
 
+### Smoke test (whole flow, one command)
+
+`npm run smoke` (see [Smoke test](#7-smoke-test)) exercises registration, item reports, admin verification, automatic matching, confirmation, claims and notifications against a running backend and prints `PASS` / `FAIL` for each check.
+
 ### Postman Collection
 
-The Postman collection is located at `postman/CampusFind_AI_Assigned_Modules.postman_collection.json` and contains 34 requests covering all endpoints.
+The Postman collection is located at `postman/CampusFind_AI_Assigned_Modules.postman_collection.json` and contains 34 requests covering all endpoints. Request descriptions in the Match and Claim folders explain the status changes and `409` rules described above.
 
 Instructions:
 1. Start the Node backend (`npm start`).
-2. Start the Image Similarity FastAPI service when testing ML endpoints.
+2. Start the Image Similarity FastAPI service (port 8001) when testing ML endpoints.
 3. Import the collection into Postman.
 4. Verify collection variables:
    - `baseUrl = http://localhost:5000`
    - `mlUrl = http://localhost:8001`
-5. Run the Login request under Auth to authenticate; the returned JWT is automatically set as `authToken`.
+5. Send **Login Student** (in the Student folder) first; the returned JWT is automatically saved as `authToken`.
 
 ### Image Similarity Tests
 

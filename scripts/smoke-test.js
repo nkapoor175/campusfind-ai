@@ -1,0 +1,230 @@
+// End-to-end smoke test for the running backend.
+//
+// Usage:  npm run smoke              run the whole flow, then delete everything it created
+//         npm run smoke -- --keep    run the whole flow and LEAVE the data in place (for demos)
+//
+// Needs: the backend running (npm start) and the seeded admin (AdminID 1, see sql/seed.sql).
+// The text and image services are optional; the backend falls back to its built-in scorer.
+// Everything is checked through the HTTP API; the database is only touched at the end to clean up.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
+const mysql = require('mysql2/promise');
+
+const BASE_URL = process.env.SMOKE_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+const ADMIN_ID = Number(process.env.SMOKE_ADMIN_ID || 1);
+const PASSWORD = 'Smoke@12345';
+const KEEP = process.argv.includes('--keep');
+
+const runId = Date.now();
+const created = { studentIds: [], lostIds: [], foundIds: [] };
+let passed = 0;
+let failed = 0;
+
+function check(name, condition, detail = '') {
+    if (condition) {
+        passed += 1;
+        console.log(`PASS  ${name}${detail ? `  (${detail})` : ''}`);
+    } else {
+        failed += 1;
+        console.log(`FAIL  ${name}${detail ? `  (${detail})` : ''}`);
+    }
+    return condition;
+}
+
+async function call(method, path, body, token) {
+    const res = await fetch(BASE_URL + path, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    let data = null;
+    try { data = await res.json(); } catch (err) { /* empty body */ }
+    return { status: res.status, data };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitFor(fn, timeoutMs = 15000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const value = await fn();
+        if (value) return value;
+        await sleep(250);
+    }
+    return null;
+}
+
+async function cleanup() {
+    const { studentIds, lostIds, foundIds } = created;
+    if (studentIds.length === 0 && lostIds.length === 0 && foundIds.length === 0) return;
+
+    const conn = await mysql.createConnection({
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME
+    });
+    try {
+        // `IN (?)` needs a non-empty list, so use [0] (matches nothing) when a list is empty
+        const students = studentIds.length ? studentIds : [0];
+        const lost = lostIds.length ? lostIds : [0];
+        const found = foundIds.length ? foundIds : [0];
+
+        await conn.query(
+            `DELETE FROM NOTIFICATION
+             WHERE StudentID IN (?)
+                OR MatchID IN (SELECT MatchID FROM MATCH_RECORD WHERE LostID IN (?) OR FoundID IN (?))`,
+            [students, lost, found]
+        );
+        await conn.query('DELETE FROM CLAIM WHERE StudentID IN (?) OR FoundID IN (?)', [students, found]);
+        await conn.query('DELETE FROM MATCH_RECORD WHERE LostID IN (?) OR FoundID IN (?)', [lost, found]);
+        await conn.query('DELETE FROM LOST_ITEM WHERE LostID IN (?)', [lost]);     // image rows cascade
+        await conn.query('DELETE FROM FOUND_ITEM WHERE FoundID IN (?)', [found]);
+        await conn.query('DELETE FROM STUDENT WHERE StudentID IN (?)', [students]);
+        console.log('\nCleanup: removed the test users, items, matches, claims and notifications.');
+    } finally {
+        await conn.end();
+    }
+}
+
+async function main() {
+    console.log(`Smoke test against ${BASE_URL}${KEEP ? '  (--keep: data will be left in place)' : ''}\n`);
+
+    // 1. health
+    let health;
+    try {
+        health = await call('GET', '/health');
+    } catch (err) {
+        console.error(`Cannot reach ${BASE_URL}. Is the backend running (npm start)?`);
+        process.exit(1);
+    }
+    check('GET /health reports the database connected', health.status === 200 && health.data.db === 'connected');
+    if (health.status !== 200) return;
+
+    // 2. register / login / me
+    const people = {
+        owner: { name: 'Smoke Lost Owner', email: `smoke.lost.${runId}@example.com` },
+        finder: { name: 'Smoke Finder', email: `smoke.found.${runId}@example.com` }
+    };
+    for (const person of Object.values(people)) {
+        const reg = await call('POST', '/api/students/register', {
+            name: person.name, email: person.email, password: PASSWORD, department: 'CSE', year: 3, hostel: 'Smoke Hostel'
+        });
+        check(`register ${person.email}`, reg.status === 201 && !('Password' in reg.data), `StudentID ${reg.data && reg.data.StudentID}`);
+        person.id = reg.data && reg.data.StudentID;
+        if (person.id) created.studentIds.push(person.id);
+
+        const login = await call('POST', '/api/students/login', { email: person.email, password: PASSWORD });
+        check(`login ${person.email}`, login.status === 200 && !!login.data.token);
+        person.token = login.data && login.data.token;
+
+        const me = await call('GET', '/api/students/me', null, person.token);
+        check(`GET /me returns the logged-in student ${person.email}`, me.status === 200 && me.data.Email === person.email && !('Password' in me.data));
+    }
+    const wrong = await call('POST', '/api/students/login', { email: people.owner.email, password: 'wrong-password' });
+    check('login with a wrong password returns 401', wrong.status === 401);
+    if (!people.owner.token || !people.finder.token) return;
+
+    // 3. report a lost and a found item (descriptions chosen to match each other)
+    const lostRes = await call('POST', '/api/lost-items', {
+        itemName: `Smoke ${runId} black boAt earbuds`, category: 'Electronics', brand: 'boAt', color: 'Black',
+        description: 'Black boAt earbuds', lostLocation: 'Library'
+    }, people.owner.token);
+    check('create lost item (201, Status Open)', lostRes.status === 201 && lostRes.data.Status === 'Open', `LostID ${lostRes.data && lostRes.data.LostID}`);
+    const lost = lostRes.data;
+    if (lost && lost.LostID) created.lostIds.push(lost.LostID);
+
+    const foundRes = await call('POST', '/api/found-items', {
+        itemName: `Smoke ${runId} boAt Airdopes earbuds`, category: 'Electronics', brand: 'boAt', color: 'Black',
+        description: 'boAt Airdopes earbuds black', foundLocation: 'Canteen'
+    }, people.finder.token);
+    check('create found item (201, Status Open)', foundRes.status === 201 && foundRes.data.Status === 'Open', `FoundID ${foundRes.data && foundRes.data.FoundID}`);
+    const found = foundRes.data;
+    if (found && found.FoundID) created.foundIds.push(found.FoundID);
+    if (!lost || !found || !lost.LostID || !found.FoundID) return;
+
+    // 4. admin: pending list, verify both
+    const pending = await call('GET', '/api/admin/pending');
+    check('admin pending lists both new reports',
+        pending.status === 200
+        && pending.data.lostItems.some((i) => i.LostID === lost.LostID)
+        && pending.data.foundItems.some((i) => i.FoundID === found.FoundID));
+    const verifyLost = await call('PUT', `/api/admin/lost/${lost.LostID}/verify`, { adminId: ADMIN_ID });
+    check('admin verifies the lost item', verifyLost.status === 200, verifyLost.status !== 200 ? `status ${verifyLost.status}: ${JSON.stringify(verifyLost.data)}` : '');
+    const verifyFound = await call('PUT', `/api/admin/found/${found.FoundID}/verify`, { adminId: ADMIN_ID });
+    check('admin verifies the found item', verifyFound.status === 200, verifyFound.status !== 200 ? `status ${verifyFound.status}: ${JSON.stringify(verifyFound.data)}` : '');
+    const pendingAfter = await call('GET', '/api/admin/pending');
+    check('verified reports leave the pending list',
+        pendingAfter.status === 200
+        && !pendingAfter.data.lostItems.some((i) => i.LostID === lost.LostID)
+        && !pendingAfter.data.foundItems.some((i) => i.FoundID === found.FoundID));
+
+    // 5. candidates (live scores)
+    const candidates = await call('GET', `/api/matches/candidates/${lost.LostID}`);
+    const entry = candidates.status === 200 && candidates.data.find((c) => c.foundItem.FoundID === found.FoundID);
+    check('candidates lists the found item with a score', !!entry && typeof entry.score === 'number' && entry.score > 0,
+        entry ? `score ${entry.score}, text ${entry.textScore}, image ${entry.imageScore}` : '');
+
+    // 6. automatic matching created a Pending match
+    const match = await waitFor(async () => {
+        const all = await call('GET', '/api/matches');
+        return all.status === 200 && all.data.find((m) => m.LostID === lost.LostID && m.FoundID === found.FoundID);
+    });
+    check('auto-match created a Pending match', !!match && match.MatchStatus === 'Pending', match ? `MatchID ${match.MatchID}` : 'none appeared within 15s');
+    if (!match) return;
+
+    // 7. confirm the match: statuses and notifications
+    const confirm = await call('PATCH', `/api/matches/${match.MatchID}/status`, { status: 'Confirmed' }, people.owner.token);
+    check('confirm the match', confirm.status === 200 && confirm.data.MatchStatus === 'Confirmed');
+    const lostAfterConfirm = await call('GET', `/api/lost-items/${lost.LostID}`);
+    check('lost item is now Matched', lostAfterConfirm.data.Status === 'Matched');
+    const ownerNotes = await call('GET', `/api/notifications/student/${people.owner.id}`);
+    const finderNotes = await call('GET', `/api/notifications/student/${people.finder.id}`);
+    check('lost owner has a notification for the confirmed match',
+        ownerNotes.status === 200 && ownerNotes.data.some((n) => n.MatchID === match.MatchID && /confirmed match/.test(n.Message)));
+    check('finder has a notification for the confirmed match',
+        finderNotes.status === 200 && finderNotes.data.some((n) => n.MatchID === match.MatchID && /was confirmed/.test(n.Message)));
+
+    // 8. claim and approve
+    const claim = await call('POST', '/api/claims', { studentId: people.owner.id, foundId: found.FoundID });
+    check('lost owner files a claim on the found item', claim.status === 201, `ClaimID ${claim.data && claim.data.claim && claim.data.claim.ClaimID}`);
+    if (claim.status !== 201) return;
+    const claimId = claim.data.claim.ClaimID;
+    const approve = await call('PUT', `/api/claims/${claimId}/status`, { adminId: ADMIN_ID, claimStatus: 'Approved', verificationNotes: 'smoke test' });
+    check('admin approves the claim', approve.status === 200 && approve.data.claim.ClaimStatus === 'Approved');
+    const foundAfter = await call('GET', `/api/found-items/${found.FoundID}`);
+    const lostAfter = await call('GET', `/api/lost-items/${lost.LostID}`);
+    check('found item is now Claimed', foundAfter.data.Status === 'Claimed');
+    check('lost item is now Closed', lostAfter.data.Status === 'Closed');
+    const ownerNotesAfter = await call('GET', `/api/notifications/student/${people.owner.id}`);
+    check('claimant is notified the claim was approved',
+        ownerNotesAfter.status === 200 && ownerNotesAfter.data.some((n) => n.MatchID === null && /was approved/.test(n.Message)));
+    const approveAgain = await call('PUT', `/api/claims/${claimId}/status`, { adminId: ADMIN_ID, claimStatus: 'Approved' });
+    check('approving the same item twice returns 409', approveAgain.status === 409);
+
+    if (KEEP) {
+        console.log('\n--keep: data left in place for your demo.');
+        console.log(`  Lost owner: ${people.owner.email}  (StudentID ${people.owner.id})`);
+        console.log(`  Finder:     ${people.finder.email}  (StudentID ${people.finder.id})`);
+        console.log(`  Password for both: ${PASSWORD}`);
+        console.log(`  Lost item ${lost.LostID}, found item ${found.FoundID}, match ${match.MatchID}, claim ${claimId}`);
+    }
+}
+
+main()
+    .catch((err) => {
+        failed += 1;
+        console.log(`FAIL  unexpected error: ${err.message}`);
+    })
+    .finally(async () => {
+        if (!KEEP) {
+            try {
+                await cleanup();
+            } catch (err) {
+                console.log(`\nWARNING: cleanup failed (${err.message}). Test rows named "Smoke ${runId}" may remain.`);
+            }
+        }
+        console.log(`\n${passed} passed, ${failed} failed`);
+        process.exit(failed === 0 ? 0 : 1);
+    });

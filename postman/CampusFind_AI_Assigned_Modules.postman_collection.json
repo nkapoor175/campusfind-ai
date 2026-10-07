@@ -260,7 +260,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "matches", "candidates", "{{lostId}}"]
             },
-            "description": "Get candidate found items for a lost item"
+            "description": "Live-scored candidate found items for a lost item, best first. Each entry has foundItem, score, textScore and imageScore (imageScore is null when either item has no photo or the image service is unavailable). Found items that already have a Confirmed match are left out."
           },
           "event": [{
             "listen": "test",
@@ -282,7 +282,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "matches"]
             },
-            "description": "Create a match record"
+            "description": "Create a Pending match record. Returns 409 if the lost or found item is not Open, the found item already has a Confirmed match, or the pair already exists. Matches are also created automatically when items are reported."
           },
           "event": [{
             "listen": "test",
@@ -341,7 +341,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "matches", "{{matchId}}", "status"]
             },
-            "description": "Update match status"
+            "description": "Update match status (Pending, Confirmed, Rejected). Confirming sets the lost item to Matched and notifies both students; moving a match out of Confirmed reopens the lost item. Returns 409 when confirming a match whose items are no longer open."
           },
           "event": [{
             "listen": "test",
@@ -466,7 +466,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims", "{{claimId}}", "status"]
             },
-            "description": "Admin updates claim status"
+            "description": "Admin approves or rejects a claim. Approving sets the found item to Claimed and its Confirmed lost item to Closed (409 if already claimed or returned) and notifies the claimant."
           }
         }
       ]

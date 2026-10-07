@@ -1,5 +1,6 @@
 const fs = require('fs');
 const uploadService = require('../services/upload.service');
+const { runAutoMatchForLostItem, runAutoMatchForFoundItem } = require('../services/autoMatchService');
 
 /**
  * Clean up uploaded files from disk if processing fails
@@ -40,11 +41,16 @@ async function uploadLostImages(req, res) {
 
     try {
       const savedImages = await uploadService.addLostItemImages(lostId, imageUrls);
-      return res.status(201).json({
+      res.status(201).json({
         message: 'Lost item image(s) uploaded successfully',
         lostId,
         images: savedImages,
       });
+
+      // Photos are uploaded after the item is created, so re-check for matches in the
+      // background. Safe to repeat: auto-matching never creates duplicate matches.
+      runAutoMatchForLostItem(lostId).catch(console.error);
+      return;
     } catch (dbError) {
       // If item does not exist or DB insertion failed, delete files from disk
       cleanupFiles(req.files);
@@ -81,11 +87,16 @@ async function uploadFoundImages(req, res) {
 
     try {
       const savedImages = await uploadService.addFoundItemImages(foundId, imageUrls);
-      return res.status(201).json({
+      res.status(201).json({
         message: 'Found item image(s) uploaded successfully',
         foundId,
         images: savedImages,
       });
+
+      // Photos are uploaded after the item is created, so re-check for matches in the
+      // background. Safe to repeat: auto-matching never creates duplicate matches.
+      runAutoMatchForFoundItem(foundId).catch(console.error);
+      return;
     } catch (dbError) {
       // If item does not exist or DB insertion failed, delete files from disk
       cleanupFiles(req.files);

@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const pool = require('./config/db');
@@ -8,6 +9,9 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Uploaded item photos are stored as /uploads/lost/<file> and /uploads/found/<file>
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.get('/health', async (req, res) => {
     try {

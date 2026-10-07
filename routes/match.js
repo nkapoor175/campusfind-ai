@@ -1,7 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const authenticate = require('../middleware/auth');
-const { scoreMatch } = require('../services/matchService');
+const { scorePairs } = require('../services/matchService');
 const { createMatchNotification } = require('../services/notification.service');
 
 const router = express.Router();
@@ -32,12 +32,14 @@ router.get('/candidates/:lostId', async (req, res) => {
                )`
         );
 
-        const candidates = await Promise.all(
-            foundItems.map(async (foundItem) => ({
-                foundItem,
-                score: await scoreMatch(lostItem, foundItem)
-            }))
-        );
+        // Text score for every candidate; photo score only for the best few (null when unavailable)
+        const results = await scorePairs(foundItems.map((foundItem) => ({ lost: lostItem, found: foundItem })));
+        const candidates = foundItems.map((foundItem, index) => ({
+            foundItem,
+            score: results[index].score,
+            textScore: results[index].textScore,
+            imageScore: results[index].imageScore
+        }));
 
         candidates.sort((a, b) => b.score - a.score);
 

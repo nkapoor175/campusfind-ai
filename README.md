@@ -94,6 +94,8 @@ Defined in `.env.example`:
 | `TEXT_SIMILARITY_URL` | URL of the Python text similarity microservice | `http://localhost:8000/similarity` |
 | `ML_SIMILARITY_URL` | Base URL of the Python image similarity microservice | `http://localhost:8001` |
 | `AUTO_MATCH_THRESHOLD` | Minimum score (0 to 1) for a pair to get an automatic Pending match | `0.7` |
+| `ML_TIMEOUT_MS` | How long to wait for the image service before ignoring photos for that comparison | `8000` |
+| `IMAGE_WEIGHT` | Weight of the photo score in the final score when both items have a photo (0 to 1) | `0.4` |
 
 ### Postman Variables
 
@@ -124,12 +126,24 @@ On protected routes, the student's identity is derived directly from `req.user.s
 
 > **Note:** The Admin, Claim, Notification, and Image Upload endpoints currently do not enforce JWT.
 
+## How Match Scores Work
+
+A score is always **derived on demand and never stored** (there is no score column on `MATCH_RECORD`). It is a number from 0 to 1:
+
+- **Text score:** the Python text service (TF-IDF + cosine over category, brand, colour and description). If that service is down, a built-in weighted string comparison is used instead.
+- **Image score:** if **both** items have an uploaded photo, the first photo of each is sent to the image service (`ML_SIMILARITY_URL`, which answers 0 to 100; the backend converts it to 0 to 1). If either item has no photo, a photo file is missing, or the image service is down or slow, the image score is `null`.
+- **Final score:** `(1 - IMAGE_WEIGHT) * text + IMAGE_WEIGHT * image` when an image score exists (default weight `0.4`), otherwise just the text score.
+
+`GET /api/matches/candidates/:lostId` returns `[{ foundItem, score, textScore, imageScore }]`, best first. To keep it fast, the text score is computed for every candidate but the image score only for the 5 best by text score; the rest get `imageScore: null`.
+
+Uploaded photos are served from `/uploads/lost/<file>` and `/uploads/found/<file>`.
+
 ## Automatic Matching
 
 When a student reports a lost or found item (and again after photos are uploaded for it), the backend looks for likely matches in the background:
 
 - It compares the item with every **open** item of the opposite type reported by a **different student** (found items that already have a Confirmed match are skipped).
-- Pairs scoring at or above `AUTO_MATCH_THRESHOLD` (default `0.7`) are ranked, and the **top 3** get a `Pending` match record. Both students are notified, with the percentage shown in the message text only. The score is never stored.
+- Pairs scoring at or above `AUTO_MATCH_THRESHOLD` (default `0.7`, using the final score described above, so matching photos can lift a pair over the line) are ranked, and the **top 3** get a `Pending` match record. Both students are notified, with the percentage shown in the message text only. The score is never stored.
 - It is idempotent (re-running never creates a duplicate pair) and never affects the HTTP response of the request that triggered it. If the text service is down, the built-in stub scorer is used.
 - Matches are still reviewed by a person: `PATCH /api/matches/:id/status` confirms or rejects them.
 
@@ -173,7 +187,7 @@ The project API includes 34 requests across the following modules:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/matches/candidates/:lostId` | none | Compute live match candidate scores for a lost item |
+| GET | `/api/matches/candidates/:lostId` | none | Compute live match candidate scores for a lost item (`score`, `textScore`, `imageScore`) |
 | POST | `/api/matches` | JWT | Create a match record between a lost item and a found item |
 | GET | `/api/matches` | none | List all match records |
 | GET | `/api/matches/:id` | none | Get a match record by ID |

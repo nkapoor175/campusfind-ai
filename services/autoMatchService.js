@@ -1,5 +1,5 @@
 const pool = require('../config/db');
-const { scoreMatch } = require('./matchService');
+const { scorePairs } = require('./matchService');
 const { createMatchNotification } = require('./notification.service');
 
 // Pairs scoring at or above this get a Pending MATCH_RECORD automatically.
@@ -25,9 +25,9 @@ function percent(score) {
 // threshold, and returns them best-first. Pairs that already have a record still take part
 // in the ranking (so a re-run never surfaces a 4th-best pair); they are just not inserted again.
 async function rankPairs(pairs) {
-    const scored = await Promise.all(
-        pairs.map(async ({ lost, found }) => ({ lost, found, score: await scoreMatch(lost, found) }))
-    );
+    // Combined text + photo score (photo only counts when both items have one)
+    const results = await scorePairs(pairs);
+    const scored = pairs.map(({ lost, found }, index) => ({ lost, found, score: results[index].score }));
     return scored
         .filter((c) => c.score >= AUTO_MATCH_THRESHOLD)
         .sort((a, b) => b.score - a.score)

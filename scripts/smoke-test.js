@@ -220,6 +220,21 @@ async function main() {
         `ClaimID ${claim.data && claim.data.claim && claim.data.claim.ClaimID}`);
     if (claim.status !== 201) return;
     const claimId = claim.data.claim.ClaimID;
+
+    // claim lists are private: students see their own claims, the reporter sees the claims on their item
+    check('listing a student\'s claims without a token returns 401', (await call('GET', `/api/claims/student/${people.owner.id}`)).status === 401);
+    check('a student cannot list another student\'s claims (403)',
+        (await call('GET', `/api/claims/student/${people.owner.id}`, null, people.finder.token)).status === 403);
+    const ownClaims = await call('GET', `/api/claims/student/${people.owner.id}`, null, people.owner.token);
+    check('a student lists their own claims', ownClaims.status === 200 && ownClaims.data.some((x) => x.ClaimID === claimId));
+    check('listing the claims on a found item without a token returns 401', (await call('GET', `/api/claims/found/${found.FoundID}`)).status === 401);
+    check('the claimant cannot list the claims on someone else\'s found item (403)',
+        (await call('GET', `/api/claims/found/${found.FoundID}`, null, people.owner.token)).status === 403);
+    const itemClaims = await call('GET', `/api/claims/found/${found.FoundID}`, null, people.finder.token);
+    check('the finder lists the claims on their found item', itemClaims.status === 200 && itemClaims.data.some((x) => x.ClaimID === claimId));
+    const adminItemClaims = await call('GET', `/api/claims/found/${found.FoundID}`, null, adminToken);
+    const adminStudentClaims = await call('GET', `/api/claims/student/${people.owner.id}`, null, adminToken);
+    check('an admin can list claims by student and by found item', adminItemClaims.status === 200 && adminStudentClaims.status === 200);
     check('a student cannot approve a claim (403)',
         (await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved' }, people.owner.token)).status === 403);
     const approve = await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved', verificationNotes: 'smoke test' }, adminToken);

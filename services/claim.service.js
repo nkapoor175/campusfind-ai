@@ -212,6 +212,24 @@ async function updateClaimStatus(claimId, adminId, claimStatus, verificationNote
 }
 
 /**
+ * Look up which student reported a found item
+ * @param {number} foundId
+ * @returns {Promise<number>} StudentID of the reporter
+ */
+async function getFoundItemReporterId(foundId) {
+  const [rows] = await pool.execute(
+    'SELECT StudentID FROM FOUND_ITEM WHERE FoundID = ?',
+    [foundId]
+  );
+  if (rows.length === 0) {
+    const error = new Error('Found item not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  return rows[0].StudentID;
+}
+
+/**
  * List every claim (newest first) with the claimant's name and the found item's name,
  * so an admin can review them in one place
  */
@@ -231,6 +249,7 @@ module.exports = {
   createClaim,
   getClaimsByStudent,
   getClaimsByFoundItem,
+  getFoundItemReporterId,
   getAllClaims,
   updateClaimStatus,
 };

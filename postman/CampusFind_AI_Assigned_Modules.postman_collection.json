@@ -530,26 +530,26 @@
           "name": "Get Claims by Student",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/claims/student/{{studentId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims", "student", "{{studentId}}"]
             },
-            "description": "List claims for a student"
+            "description": "List claims for a student. Student token required, and studentId must be the logged-in student's own ID (an admin token can list anyone's)."
           }
         },
         {
           "name": "Get Claims by Found Item",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/claims/found/{{foundId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims", "found", "{{foundId}}"]
             },
-            "description": "List claims for a found item"
+            "description": "List claims on a found item. Student token required, and the found item must be one this student reported (an admin token can list any)."
           }
         },
         {

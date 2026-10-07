@@ -173,10 +173,10 @@ Admin passwords are stored as bcrypt hashes in `ADMIN.Password`. The demo admin 
 
 | Access | Endpoints |
 |---|---|
-| **Public** | `GET /health`, `POST /api/students/register`, `POST /api/students/login`, `POST /api/admin/login`, all `GET` lost/found item routes, `GET /api/matches*` (including `/candidates/:lostId`), `GET /api/claims/student/:studentId`, `GET /api/claims/found/:foundId`, `GET /api/uploads/*`, and the static `/uploads/*` photos |
+| **Public** | `GET /health`, `POST /api/students/register`, `POST /api/students/login`, `POST /api/admin/login`, all `GET` lost/found item routes, `GET /api/matches*` (including `/candidates/:lostId`), `GET /api/uploads/*`, and the static `/uploads/*` photos |
 | **Student token only** | `GET /api/students/me`, `PUT /api/students/me`, `POST /api/lost-items`, `POST /api/found-items`, `POST /api/claims` |
 | **Any valid token** | `POST /api/matches` |
-| **Owner or admin** | `PATCH /api/matches/:id/status` (the lost item's owner), `POST /api/uploads/lost/:lostId` and `POST /api/uploads/found/:foundId` (the student who reported that item), `GET /api/notifications/student/:studentId` and `PUT /api/notifications/:id/read` (the notification's own student) |
+| **Owner or admin** | `PATCH /api/matches/:id/status` (the lost item's owner), `POST /api/uploads/lost/:lostId` and `POST /api/uploads/found/:foundId` (the student who reported that item), `GET /api/notifications/student/:studentId` and `PUT /api/notifications/:id/read` (the notification's own student), `GET /api/claims/student/:studentId` (that student), `GET /api/claims/found/:foundId` (the student who reported that found item) |
 | **Admin token only** | `GET /api/admin/pending`, `PUT /api/admin/lost/:id/verify`, `PUT /api/admin/found/:id/verify`, `PUT /api/admin/found/:id/return`, `DELETE /api/admin/lost/:id`, `DELETE /api/admin/found/:id`, `GET /api/claims`, `PUT /api/claims/:id/status` |
 
 Responses: no or invalid token is `401`; a valid token of the wrong role, or someone else's record, is `403`.
@@ -298,8 +298,8 @@ The project API includes 40 requests across the following modules. In the `Auth`
 |---|---|---|---|
 | GET | `/api/claims` | Admin | List all claims, newest first, each with the claimant's `StudentName` and the item's `FoundItemName` |
 | POST | `/api/claims` | Student | Submit an ownership claim for a found item (body: `foundId`; the claimant comes from the token) |
-| GET | `/api/claims/student/:studentId` | none | List all claims submitted by a student |
-| GET | `/api/claims/found/:foundId` | none | List all claims associated with a found item |
+| GET | `/api/claims/student/:studentId` | Owner or admin | List all claims submitted by a student (that student, or an admin) |
+| GET | `/api/claims/found/:foundId` | Owner or admin | List all claims on a found item (the student who reported it, or an admin) |
 | PUT | `/api/claims/:id/status` | Admin | Approve or reject a claim (the deciding admin comes from the token) |
 
 ### Notification

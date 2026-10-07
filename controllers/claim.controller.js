@@ -29,7 +29,7 @@ async function createClaim(req, res) {
 
 /**
  * GET /api/claims/student/:studentId
- * List all claims filed by a student
+ * List all claims filed by a student (that student, or an admin)
  */
 async function getClaimsByStudent(req, res) {
   try {
@@ -37,6 +37,11 @@ async function getClaimsByStudent(req, res) {
 
     if (isNaN(studentId) || studentId <= 0) {
       return res.status(400).json({ message: 'Invalid student ID' });
+    }
+
+    // A student may only list their own claims; admins may list anyone's
+    if (req.user.role !== 'admin' && req.user.studentId !== studentId) {
+      return res.status(403).json({ message: 'You can only view your own claims' });
     }
 
     const claims = await claimService.getClaimsByStudent(studentId);
@@ -52,7 +57,7 @@ async function getClaimsByStudent(req, res) {
 
 /**
  * GET /api/claims/found/:foundId
- * List all claims associated with a found item
+ * List all claims associated with a found item (the student who reported it, or an admin)
  */
 async function getClaimsByFoundItem(req, res) {
   try {
@@ -60,6 +65,14 @@ async function getClaimsByFoundItem(req, res) {
 
     if (isNaN(foundId) || foundId <= 0) {
       return res.status(400).json({ message: 'Invalid found item ID' });
+    }
+
+    // The claimants' details are only for whoever is holding the item, and admins
+    if (req.user.role !== 'admin') {
+      const reporterId = await claimService.getFoundItemReporterId(foundId);
+      if (reporterId !== req.user.studentId) {
+        return res.status(403).json({ message: 'Only the student who reported this item can view its claims' });
+      }
     }
 
     const claims = await claimService.getClaimsByFoundItem(foundId);

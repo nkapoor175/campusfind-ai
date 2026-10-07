@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { INITIAL_STUDENTS, INITIAL_ADMIN } from '../services/seedData';
+import { INITIAL_STUDENTS } from '../services/seedData';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('campusfind_user');
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS[1]; // Parthvi Sharma by default
+    return saved ? JSON.parse(saved) : INITIAL_STUDENTS[1];
   });
   const [role, setRole] = useState(() => {
     return localStorage.getItem('campusfind_role') || 'student';
@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
             setUnreadCount(notifs.filter((n) => !n.ReadStatus).length);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [user, role]);
 
@@ -34,19 +34,18 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       if (email.toLowerCase().includes('admin')) {
-        // Admin login
-        setUser(INITIAL_ADMIN);
+        const res = await api.adminLogin(email, password);
+        setUser(res.admin);
         setRole('admin');
-        setToken('admin_token_active');
-        localStorage.setItem('campusfind_user', JSON.stringify(INITIAL_ADMIN));
+        setToken(res.token);
         localStorage.setItem('campusfind_role', 'admin');
-        localStorage.setItem('campusfind_token', 'admin_token_active');
-        return { success: true, role: 'admin' };
+        return { success: true, role: 'admin', user: res.admin };
       }
 
       const res = await api.login(email, password);
       setUser(res.student);
       setRole('student');
+      setToken(res.token);
       localStorage.setItem('campusfind_role', 'student');
       return { success: true, role: 'student', student: res.student };
     } finally {
@@ -60,7 +59,6 @@ export function AuthProvider({ children }) {
       const student = await api.register(formData);
       setUser(student);
       setRole('student');
-      localStorage.setItem('campusfind_user', JSON.stringify(student));
       localStorage.setItem('campusfind_role', 'student');
       return student;
     } finally {
@@ -77,20 +75,6 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('campusfind_role');
   };
 
-  const switchRole = (newRole) => {
-    if (newRole === 'admin') {
-      setUser(INITIAL_ADMIN);
-      setRole('admin');
-      localStorage.setItem('campusfind_user', JSON.stringify(INITIAL_ADMIN));
-      localStorage.setItem('campusfind_role', 'admin');
-    } else {
-      setUser(INITIAL_STUDENTS[1]);
-      setRole('student');
-      localStorage.setItem('campusfind_user', JSON.stringify(INITIAL_STUDENTS[1]));
-      localStorage.setItem('campusfind_role', 'student');
-    }
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -103,7 +87,6 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
-        switchRole,
       }}
     >
       {children}

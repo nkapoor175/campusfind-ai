@@ -1,7 +1,7 @@
 /**
  * CampusFind AI — API Client Service
  * Connects directly to backend Express endpoints.
- * Includes graceful fallback to local seed memory for offline presentation.
+ * Includes explicit, safe demo fallback system with visible mode indicators.
  */
 
 import {
@@ -16,7 +16,65 @@ import {
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
-// Local state for resilient offline demo mode
+export function isDemoFallbackEnabled() {
+  return String(import.meta.env.VITE_DEMO_FALLBACK).toLowerCase() === 'true';
+}
+
+export class ApiError extends Error {
+  constructor(message, status = 500, data = null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+    this.isHttpError = true;
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message, originalError = null) {
+    super(message);
+    this.name = 'NetworkError';
+    this.isNetworkError = true;
+    this.originalError = originalError;
+  }
+}
+
+const fallbackListeners = new Set();
+let fallbackActive = false;
+
+export function isDemoFallbackActive() {
+  return fallbackActive;
+}
+
+export function subscribeToDemoFallback(callback) {
+  fallbackListeners.add(callback);
+  return () => fallbackListeners.delete(callback);
+}
+
+export function notifyFallbackUsed() {
+  if (!fallbackActive) {
+    fallbackActive = true;
+    fallbackListeners.forEach((fn) => {
+      try {
+        fn(true);
+      } catch (err) {
+        console.error('Error notifying fallback listener:', err);
+      }
+    });
+  }
+}
+
+export function resetDemoFallbackState() {
+  fallbackActive = false;
+  fallbackListeners.forEach((fn) => {
+    try {
+      fn(false);
+    } catch (err) {
+      console.error('Error notifying fallback listener:', err);
+    }
+  });
+}
+
 let localLostItems = [...INITIAL_LOST_ITEMS];
 let localFoundItems = [...INITIAL_FOUND_ITEMS];
 let localMatches = [...INITIAL_MATCH_RECORDS];
@@ -36,21 +94,52 @@ async function request(endpoint, options = {}) {
     ...(options.headers || {}),
   };
 
+  let res;
   try {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
+  } catch (err) {
+    throw new NetworkError(
+      `Unable to reach campus server (${endpoint}). Please verify your connection.`,
+      err
+    );
+  }
 
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.error || errorData.message || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    const message =
+      errorData.error ||
+      errorData.message ||
+      `Request failed with status ${res.status}`;
+    throw new ApiError(message, res.status, errorData);
+  }
+
+  return await res.json();
+}
+
+async function withFallback(apiCall, fallbackFn) {
+  try {
+    return await apiCall();
+  } catch (err) {
+    if (!isDemoFallbackEnabled()) {
+      throw err;
     }
 
-    return await res.json();
-  } catch (err) {
-    // If backend is unreachable (connection refused, server down), log note and use mock fallback
-    console.warn(`[CampusFind API] Live endpoint ${endpoint} failed or offline, using fallback store.`, err.message);
+    if (err.isHttpError && err.status >= 400 && err.status < 500) {
+      throw err;
+    }
+
+    if (typeof fallbackFn === 'function') {
+      console.warn(
+        '[CampusFind API] Live server unreachable; serving fallback data because VITE_DEMO_FALLBACK=true.',
+        err.message
+      );
+      notifyFallbackUsed();
+      return fallbackFn(err);
+    }
+
     throw err;
   }
 }
@@ -58,462 +147,501 @@ async function request(endpoint, options = {}) {
 export const api = {
   // ---------------- AUTH & STUDENT ----------------
   async login(email, password) {
-    try {
-      const data = await request('/api/students/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      if (data.token) {
-        localStorage.setItem('campusfind_token', data.token);
-        localStorage.setItem('campusfind_user', JSON.stringify(data.student));
+    return withFallback(
+      async () => {
+        const data = await request('/api/students/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        if (data.token) {
+          localStorage.setItem('campusfind_token', data.token);
+          localStorage.setItem('campusfind_user', JSON.stringify(data.student));
+        }
+        return data;
+      },
+      () => {
+        const student = localStudents.find((s) => s.Email.toLowerCase() === email.toLowerCase());
+        if (student || email.includes('@')) {
+          const demoStudent = student || {
+            StudentID: 2,
+            Name: 'Parthvi Sharma',
+            Email: email,
+            Phone: '9876543211',
+            Department: 'Computer Science',
+            Year: 3,
+            Hostel: 'Hostel B',
+          };
+          const token = 'demo_jwt_token_' + Date.now();
+          localStorage.setItem('campusfind_token', token);
+          localStorage.setItem('campusfind_user', JSON.stringify(demoStudent));
+          return { token, student: demoStudent, isDemo: true };
+        }
+        throw new Error('Invalid email or password');
       }
-      return data;
-    } catch {
-      // Local fallback for quick evaluation/demo
-      const student = localStudents.find((s) => s.Email.toLowerCase() === email.toLowerCase());
-      if (student || email.includes('@')) {
-        const demoStudent = student || {
-          StudentID: 2,
-          Name: 'Parthvi Sharma',
-          Email: email,
-          Phone: '9876543211',
-          Department: 'Computer Science',
-          Year: 3,
-          Hostel: 'Hostel B',
-        };
-        const token = 'demo_jwt_token_' + Date.now();
-        localStorage.setItem('campusfind_token', token);
-        localStorage.setItem('campusfind_user', JSON.stringify(demoStudent));
-        return { token, student: demoStudent, isDemo: true };
+    );
+  },
+
+  async adminLogin(email, password) {
+    return withFallback(
+      async () => {
+        const data = await request('/api/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        if (data.token) {
+          localStorage.setItem('campusfind_token', data.token);
+          localStorage.setItem('campusfind_user', JSON.stringify(data.admin));
+        }
+        return data;
+      },
+      () => {
+        if (email.toLowerCase() === 'admin@campus.edu' && password === 'Admin@12345') {
+          const token = 'demo_admin_jwt_token_' + Date.now();
+          localStorage.setItem('campusfind_token', token);
+          localStorage.setItem('campusfind_user', JSON.stringify(INITIAL_ADMIN));
+          return { token, admin: INITIAL_ADMIN, isDemo: true };
+        }
+        throw new Error('Invalid admin credentials');
       }
-      throw new Error('Invalid email or password');
-    }
+    );
   },
 
   async register(studentData) {
-    try {
-      const data = await request('/api/students/register', {
-        method: 'POST',
-        body: JSON.stringify(studentData),
-      });
-      return data;
-    } catch {
-      const newStudent = {
-        StudentID: localStudents.length + 1,
-        Name: studentData.name,
-        Email: studentData.email,
-        Phone: studentData.phone || '',
-        Department: studentData.department || 'Computer Science',
-        Year: studentData.year || 1,
-        Hostel: studentData.hostel || 'Hostel A',
-      };
-      localStudents.push(newStudent);
-      return newStudent;
-    }
+    return withFallback(
+      async () => {
+        const data = await request('/api/students/register', {
+          method: 'POST',
+          body: JSON.stringify(studentData),
+        });
+        return data;
+      },
+      () => {
+        const newStudent = {
+          StudentID: localStudents.length + 1,
+          Name: studentData.name,
+          Email: studentData.email,
+          Phone: studentData.phone || '',
+          Department: studentData.department || 'Computer Science',
+          Year: studentData.year || 1,
+          Hostel: studentData.hostel || 'Hostel A',
+        };
+        localStudents.push(newStudent);
+        return newStudent;
+      }
+    );
   },
 
   async getMe() {
-    try {
-      return await request('/api/students/me');
-    } catch {
-      const cached = localStorage.getItem('campusfind_user');
-      if (cached) return JSON.parse(cached);
-      return localStudents[1]; // default Parthvi Sharma
-    }
+    return withFallback(
+      () => request('/api/students/me'),
+      () => {
+        const cached = localStorage.getItem('campusfind_user');
+        if (cached) return JSON.parse(cached);
+        return localStudents[1];
+      }
+    );
   },
 
   // ---------------- LOST ITEMS ----------------
   async getLostItems() {
-    try {
-      const items = await request('/api/lost-items');
-      return items;
-    } catch {
-      return [...localLostItems];
-    }
+    return withFallback(
+      async () => {
+        const items = await request('/api/lost-items');
+        return Array.isArray(items) ? items : [];
+      },
+      () => [...localLostItems]
+    );
   },
 
   async getLostItemById(id) {
-    try {
-      return await request(`/api/lost-items/${id}`);
-    } catch {
-      return localLostItems.find((item) => String(item.LostID) === String(id)) || localLostItems[0];
-    }
+    return withFallback(
+      () => request(`/api/lost-items/${id}`),
+      () => localLostItems.find((item) => String(item.LostID) === String(id)) || localLostItems[0]
+    );
   },
 
   async getLostItemsByStudent(studentId) {
-    try {
-      return await request(`/api/lost-items/student/${studentId}`);
-    } catch {
-      return localLostItems.filter((item) => String(item.StudentID) === String(studentId));
-    }
+    return withFallback(
+      async () => {
+        const items = await request(`/api/lost-items/student/${studentId}`);
+        return Array.isArray(items) ? items : [];
+      },
+      () => localLostItems.filter((item) => String(item.StudentID) === String(studentId))
+    );
   },
 
   async createLostItem(itemData) {
-    try {
-      const created = await request('/api/lost-items', {
-        method: 'POST',
-        body: JSON.stringify(itemData),
-      });
-      if (itemData.imagePreview) {
-        created.imageUrl = itemData.imagePreview;
+    return withFallback(
+      async () => {
+        const created = await request('/api/lost-items', {
+          method: 'POST',
+          body: JSON.stringify(itemData),
+        });
+        if (itemData.imagePreview) {
+          created.imageUrl = itemData.imagePreview;
+        }
+        return created;
+      },
+      () => {
+        const newId = localLostItems.length + 1;
+        const newItem = {
+          LostID: newId,
+          ItemName: itemData.itemName,
+          Category: itemData.category,
+          Brand: itemData.brand,
+          Color: itemData.color,
+          Description: itemData.description,
+          DateLost: itemData.dateLost || new Date().toISOString().split('T')[0],
+          LostLocation: itemData.lostLocation,
+          Status: 'Open',
+          StudentID: itemData.studentId || 2,
+          AdminID: null,
+          imageUrl: itemData.imagePreview || null,
+          studentName: 'Current Student',
+        };
+        localLostItems.unshift(newItem);
+        return newItem;
       }
-      return created;
-    } catch {
-      const newId = localLostItems.length + 1;
-      const newItem = {
-        LostID: newId,
-        ItemName: itemData.itemName,
-        Category: itemData.category,
-        Brand: itemData.brand,
-        Color: itemData.color,
-        Description: itemData.description,
-        DateLost: itemData.dateLost || new Date().toISOString().split('T')[0],
-        LostLocation: itemData.lostLocation,
-        Status: 'Open',
-        StudentID: itemData.studentId || 2,
-        AdminID: null,
-        imageUrl: itemData.imagePreview || null,
-        studentName: 'Current Student',
-      };
-      localLostItems.unshift(newItem);
-
-      // Auto-trigger possible match notification simulation
-      localNotifications.unshift({
-        NotificationID: localNotifications.length + 1,
-        Message: `✨ AI is analyzing candidate matches for your ${newItem.ItemName}...`,
-        Date: new Date().toISOString(),
-        ReadStatus: false,
-        StudentID: newItem.StudentID,
-        MatchID: null,
-        type: 'match',
-      });
-
-      return newItem;
-    }
+    );
   },
 
   // ---------------- FOUND ITEMS ----------------
   async getFoundItems() {
-    try {
-      return await request('/api/found-items');
-    } catch {
-      return [...localFoundItems];
-    }
+    return withFallback(
+      async () => {
+        const items = await request('/api/found-items');
+        return Array.isArray(items) ? items : [];
+      },
+      () => [...localFoundItems]
+    );
   },
 
   async getFoundItemById(id) {
-    try {
-      return await request(`/api/found-items/${id}`);
-    } catch {
-      return localFoundItems.find((item) => String(item.FoundID) === String(id)) || localFoundItems[0];
-    }
+    return withFallback(
+      () => request(`/api/found-items/${id}`),
+      () => localFoundItems.find((item) => String(item.FoundID) === String(id)) || localFoundItems[0]
+    );
   },
 
   async getFoundItemsByStudent(studentId) {
-    try {
-      return await request(`/api/found-items/student/${studentId}`);
-    } catch {
-      return localFoundItems.filter((item) => String(item.StudentID) === String(studentId));
-    }
+    return withFallback(
+      async () => {
+        const items = await request(`/api/found-items/student/${studentId}`);
+        return Array.isArray(items) ? items : [];
+      },
+      () => localFoundItems.filter((item) => String(item.StudentID) === String(studentId))
+    );
   },
 
   async createFoundItem(itemData) {
-    try {
-      const created = await request('/api/found-items', {
-        method: 'POST',
-        body: JSON.stringify(itemData),
-      });
-      if (itemData.imagePreview) {
-        created.imageUrl = itemData.imagePreview;
+    return withFallback(
+      async () => {
+        const created = await request('/api/found-items', {
+          method: 'POST',
+          body: JSON.stringify(itemData),
+        });
+        if (itemData.imagePreview) {
+          created.imageUrl = itemData.imagePreview;
+        }
+        return created;
+      },
+      () => {
+        const newId = localFoundItems.length + 1;
+        const newItem = {
+          FoundID: newId,
+          ItemName: itemData.itemName,
+          Category: itemData.category,
+          Brand: itemData.brand,
+          Color: itemData.color,
+          Description: itemData.description,
+          DateFound: itemData.dateFound || new Date().toISOString().split('T')[0],
+          FoundLocation: itemData.foundLocation,
+          Status: 'Open',
+          StudentID: itemData.studentId || 2,
+          AdminID: null,
+          imageUrl: itemData.imagePreview || null,
+          studentName: 'Current Student',
+        };
+        localFoundItems.unshift(newItem);
+        return newItem;
       }
-      return created;
-    } catch {
-      const newId = localFoundItems.length + 1;
-      const newItem = {
-        FoundID: newId,
-        ItemName: itemData.itemName,
-        Category: itemData.category,
-        Brand: itemData.brand,
-        Color: itemData.color,
-        Description: itemData.description,
-        DateFound: itemData.dateFound || new Date().toISOString().split('T')[0],
-        FoundLocation: itemData.foundLocation,
-        Status: 'Open',
-        StudentID: itemData.studentId || 2,
-        AdminID: null,
-        imageUrl: itemData.imagePreview || null,
-        studentName: 'Current Student',
-      };
-      localFoundItems.unshift(newItem);
-      return newItem;
-    }
+    );
   },
 
   // ---------------- AI MATCHES ----------------
   async getCandidates(lostId) {
-    try {
-      return await request(`/api/matches/candidates/${lostId}`);
-    } catch {
-      // Local fallback computation replicating matchService
-      const targetLost = localLostItems.find((i) => String(i.LostID) === String(lostId));
-      if (!targetLost) return [];
-
-      return localFoundItems
-        .filter((f) => f.Status === 'Open')
-        .map((foundItem) => {
-          let score = 0.2;
-          if (foundItem.Category && targetLost.Category && foundItem.Category.toLowerCase() === targetLost.Category.toLowerCase()) {
-            score += 0.35;
-          }
-          if (foundItem.Color && targetLost.Color && foundItem.Color.toLowerCase() === targetLost.Color.toLowerCase()) {
-            score += 0.2;
-          }
-          if (foundItem.ItemName.toLowerCase().includes(targetLost.ItemName.toLowerCase()) ||
-              targetLost.ItemName.toLowerCase().includes(foundItem.ItemName.toLowerCase())) {
-            score += 0.25;
-          }
-          return {
-            foundItem,
-            score: Math.min(0.96, Math.max(0.35, Number(score.toFixed(2)))),
-          };
-        })
-        .sort((a, b) => b.score - a.score);
-    }
+    return withFallback(
+      () => request(`/api/matches/candidates/${lostId}`),
+      () => {
+        const targetLost = localLostItems.find((i) => String(i.LostID) === String(lostId));
+        if (!targetLost) return [];
+        return localFoundItems
+          .filter((f) => f.Status === 'Open')
+          .map((foundItem) => {
+            let score = 0.2;
+            if (foundItem.Category === targetLost.Category) score += 0.35;
+            if (foundItem.Color === targetLost.Color) score += 0.2;
+            if (foundItem.ItemName.includes(targetLost.ItemName)) score += 0.25;
+            return { foundItem, score: Math.min(0.96, Math.max(0.35, Number(score.toFixed(2)))) };
+          })
+          .sort((a, b) => b.score - a.score);
+      }
+    );
   },
 
   async getMatches() {
-    try {
-      return await request('/api/matches');
-    } catch {
-      return [...localMatches];
-    }
+    return withFallback(
+      () => request('/api/matches'),
+      () => [...localMatches]
+    );
   },
 
   async createMatch(lostId, foundId) {
-    try {
-      return await request('/api/matches', {
+    return withFallback(
+      () => request('/api/matches', {
         method: 'POST',
         body: JSON.stringify({ lostId, foundId }),
-      });
-    } catch {
-      const lost = localLostItems.find((l) => String(l.LostID) === String(lostId));
-      const found = localFoundItems.find((f) => String(f.FoundID) === String(foundId));
-      const newMatch = {
-        MatchID: localMatches.length + 1,
-        LostID: Number(lostId),
-        FoundID: Number(foundId),
-        MatchDate: new Date().toISOString(),
-        MatchStatus: 'Pending',
-        score: 0.92,
-        lostItem: lost,
-        foundItem: found,
-      };
-      localMatches.unshift(newMatch);
-      return newMatch;
-    }
+      }),
+      () => {
+        const lost = localLostItems.find((l) => String(l.LostID) === String(lostId));
+        const found = localFoundItems.find((f) => String(f.FoundID) === String(foundId));
+        const newMatch = {
+          MatchID: localMatches.length + 1,
+          LostID: Number(lostId),
+          FoundID: Number(foundId),
+          MatchDate: new Date().toISOString(),
+          MatchStatus: 'Pending',
+          score: 0.92,
+          lostItem: lost,
+          foundItem: found,
+        };
+        localMatches.unshift(newMatch);
+        return newMatch;
+      }
+    );
   },
 
   async updateMatchStatus(matchId, status) {
-    try {
-      return await request(`/api/matches/${matchId}/status`, {
+    return withFallback(
+      () => request(`/api/matches/${matchId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
-      });
-    } catch {
-      const match = localMatches.find((m) => String(m.MatchID) === String(matchId));
-      if (match) {
-        match.MatchStatus = status;
+      }),
+      () => {
+        const match = localMatches.find((m) => String(m.MatchID) === String(matchId));
+        if (match) match.MatchStatus = status;
+        return match;
       }
-      return match;
-    }
+    );
   },
 
   // ---------------- CLAIMS ----------------
-  async createClaim(studentId, foundId) {
-    try {
-      return await request('/api/claims', {
+  async createClaim(foundId) {
+    return withFallback(
+      () => request('/api/claims', {
         method: 'POST',
-        body: JSON.stringify({ studentId, foundId }),
-      });
-    } catch {
-      const found = localFoundItems.find((f) => String(f.FoundID) === String(foundId));
-      const newClaim = {
-        ClaimID: localClaims.length + 1,
-        ClaimDate: new Date().toISOString(),
-        ClaimStatus: 'Pending',
-        VerificationNotes: 'Under review by security administration',
-        StudentID: Number(studentId),
-        FoundID: Number(foundId),
-        studentName: 'Parthvi Sharma',
-        foundItem: found,
-      };
-      localClaims.unshift(newClaim);
-      return { message: 'Claim submitted successfully', claim: newClaim };
-    }
+        body: JSON.stringify({ foundId }),
+      }),
+      () => {
+        const found = localFoundItems.find((f) => String(f.FoundID) === String(foundId));
+        const newClaim = {
+          ClaimID: localClaims.length + 1,
+          ClaimDate: new Date().toISOString(),
+          ClaimStatus: 'Pending',
+          VerificationNotes: 'Under review by security administration',
+          StudentID: 2, 
+          FoundID: Number(foundId),
+          studentName: 'Parthvi Sharma',
+          foundItem: found,
+        };
+        localClaims.unshift(newClaim);
+        return { message: 'Claim submitted successfully', claim: newClaim };
+      }
+    );
   },
 
   async getClaimsByStudent(studentId) {
-    try {
-      return await request(`/api/claims/student/${studentId}`);
-    } catch {
-      return localClaims.filter((c) => String(c.StudentID) === String(studentId));
-    }
+    return withFallback(
+      () => request(`/api/claims/student/${studentId}`),
+      () => localClaims.filter((c) => String(c.StudentID) === String(studentId))
+    );
   },
 
   async getClaimsByFoundItem(foundId) {
-    try {
-      return await request(`/api/claims/found/${foundId}`);
-    } catch {
-      return localClaims.filter((c) => String(c.FoundID) === String(foundId));
-    }
+    return withFallback(
+      () => request(`/api/claims/found/${foundId}`),
+      () => localClaims.filter((c) => String(c.FoundID) === String(foundId))
+    );
   },
 
   async getAllClaims() {
-    return [...localClaims];
+    return withFallback(
+      async () => {
+        const claims = await request('/api/claims');
+        return Array.isArray(claims) ? claims : [];
+      },
+      () => [...localClaims]
+    );
   },
 
-  async updateClaimStatus(claimId, adminId, claimStatus, verificationNotes) {
-    try {
-      return await request(`/api/claims/${claimId}/status`, {
+  async updateClaimStatus(claimId, claimStatus, verificationNotes) {
+    return withFallback(
+      () => request(`/api/claims/${claimId}/status`, {
         method: 'PUT',
-        body: JSON.stringify({ adminId, claimStatus, verificationNotes }),
-      });
-    } catch {
-      const claim = localClaims.find((c) => String(c.ClaimID) === String(claimId));
-      if (claim) {
-        claim.ClaimStatus = claimStatus;
-        claim.VerificationNotes = verificationNotes || claim.VerificationNotes;
-        claim.AdminID = Number(adminId);
+        body: JSON.stringify({ claimStatus, verificationNotes }),
+      }),
+      () => {
+        const claim = localClaims.find((c) => String(c.ClaimID) === String(claimId));
+        if (claim) {
+          claim.ClaimStatus = claimStatus;
+          claim.VerificationNotes = verificationNotes || claim.VerificationNotes;
+          claim.AdminID = 1;
+        }
+        return { message: `Claim status updated to ${claimStatus}`, claim };
       }
-      return { message: `Claim status updated to ${claimStatus}`, claim };
-    }
+    );
   },
 
   // ---------------- ADMIN VERIFICATIONS ----------------
   async getPendingReports() {
-    try {
-      return await request('/api/admin/pending');
-    } catch {
-      const pendingLost = localLostItems.filter((i) => !i.AdminID);
-      const pendingFound = localFoundItems.filter((i) => !i.AdminID);
-      return {
-        pendingLost,
-        pendingFound,
-        totalPending: pendingLost.length + pendingFound.length,
-      };
-    }
+    return withFallback(
+      async () => {
+        const data = await request('/api/admin/pending');
+        const pendingLost = Array.isArray(data?.lostItems) ? data.lostItems : (data?.pendingLost || []);
+        const pendingFound = Array.isArray(data?.foundItems) ? data.foundItems : (data?.pendingFound || []);
+        return {
+          pendingLost,
+          pendingFound,
+          totalPending: pendingLost.length + pendingFound.length,
+        };
+      },
+      () => {
+        const pendingLost = localLostItems.filter((i) => !i.AdminID);
+        const pendingFound = localFoundItems.filter((i) => !i.AdminID);
+        return {
+          pendingLost: pendingLost || [],
+          pendingFound: pendingFound || [],
+          totalPending: pendingLost.length + pendingFound.length,
+        };
+      }
+    );
   },
 
-  async verifyLostItem(id, adminId = 1) {
-    try {
-      return await request(`/api/admin/lost/${id}/verify`, {
+  async verifyLostItem(id) {
+    return withFallback(
+      () => request(`/api/admin/lost/${id}/verify`, {
         method: 'PUT',
-        body: JSON.stringify({ adminId }),
-      });
-    } catch {
-      const item = localLostItems.find((i) => String(i.LostID) === String(id));
-      if (item) item.AdminID = adminId;
-      return { message: 'Lost item verified successfully', item };
-    }
+      }),
+      () => {
+        const item = localLostItems.find((i) => String(i.LostID) === String(id));
+        if (item) item.AdminID = 1;
+        return { message: 'Lost item verified successfully', item };
+      }
+    );
   },
 
-  async verifyFoundItem(id, adminId = 1) {
-    try {
-      return await request(`/api/admin/found/${id}/verify`, {
+  async verifyFoundItem(id) {
+    return withFallback(
+      () => request(`/api/admin/found/${id}/verify`, {
         method: 'PUT',
-        body: JSON.stringify({ adminId }),
-      });
-    } catch {
-      const item = localFoundItems.find((i) => String(i.FoundID) === String(id));
-      if (item) item.AdminID = adminId;
-      return { message: 'Found item verified successfully', item };
-    }
+      }),
+      () => {
+        const item = localFoundItems.find((i) => String(i.FoundID) === String(id));
+        if (item) item.AdminID = 1;
+        return { message: 'Found item verified successfully', item };
+      }
+    );
   },
 
   // ---------------- NOTIFICATIONS ----------------
-  async getNotifications(studentId = 2) {
-    try {
-      return await request(`/api/notifications/student/${studentId}`);
-    } catch {
-      return localNotifications.filter((n) => String(n.StudentID) === String(studentId));
-    }
+  async getNotifications(studentId) {
+    return withFallback(
+      async () => {
+        const notifs = await request(`/api/notifications/student/${studentId}`);
+        return Array.isArray(notifs) ? notifs : [];
+      },
+      () => localNotifications.filter((n) => String(n.StudentID) === String(studentId))
+    );
   },
 
   async markNotificationRead(id) {
-    try {
-      return await request(`/api/notifications/${id}/read`, {
+    return withFallback(
+      () => request(`/api/notifications/${id}/read`, {
         method: 'PUT',
-      });
-    } catch {
-      const notif = localNotifications.find((n) => String(n.NotificationID) === String(id));
-      if (notif) notif.ReadStatus = true;
-      return { message: 'Notification marked as read', notification: notif };
-    }
+      }),
+      () => {
+        const notif = localNotifications.find((n) => String(n.NotificationID) === String(id));
+        if (notif) notif.ReadStatus = true;
+        return { message: 'Notification marked as read', notification: notif };
+      }
+    );
   },
 
   // ---------------- IMAGE UPLOADS ----------------
   async uploadLostImage(lostId, file) {
-    try {
-      const formData = new FormData();
-      formData.append('images', file);
-      const res = await fetch(`${BASE_URL}/api/uploads/lost/${lostId}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok && data?.images?.[0]?.ImageURL) {
-        const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
-        if (item) item.imageUrl = data.images[0].ImageURL;
+    return withFallback(
+      async () => {
+        const formData = new FormData();
+        formData.append('images', file);
+        const res = await fetch(`${BASE_URL}/api/uploads/lost/${lostId}`, {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: formData,
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new ApiError(errData.error || errData.message || 'Image upload failed', res.status);
+        }
+        return await res.json();
+      },
+      () => {
+        const localUrl = URL.createObjectURL(file);
+        return { message: 'Image uploaded locally', fileUrl: localUrl };
       }
-      return data;
-    } catch {
-      const localUrl = URL.createObjectURL(file);
-      const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
-      if (item) item.imageUrl = localUrl;
-      return { message: 'Image uploaded locally', fileUrl: localUrl };
-    }
+    );
   },
 
   async uploadFoundImage(foundId, file) {
-    try {
-      const formData = new FormData();
-      formData.append('images', file);
-      const res = await fetch(`${BASE_URL}/api/uploads/found/${foundId}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok && data?.images?.[0]?.ImageURL) {
-        const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
-        if (item) item.imageUrl = data.images[0].ImageURL;
+    return withFallback(
+      async () => {
+        const formData = new FormData();
+        formData.append('images', file);
+        const res = await fetch(`${BASE_URL}/api/uploads/found/${foundId}`, {
+          method: 'POST',
+          headers: getAuthHeader(),
+          body: formData,
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new ApiError(errData.error || errData.message || 'Image upload failed', res.status);
+        }
+        return await res.json();
+      },
+      () => {
+        const localUrl = URL.createObjectURL(file);
+        return { message: 'Image uploaded locally', fileUrl: localUrl };
       }
-      return data;
-    } catch {
-      const localUrl = URL.createObjectURL(file);
-      const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
-      if (item) item.imageUrl = localUrl;
-      return { message: 'Image uploaded locally', fileUrl: localUrl };
-    }
+    );
   },
 
   async getLostItemImages(lostId) {
-    try {
-      return await request(`/api/uploads/lost/${lostId}`);
-    } catch {
-      const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
-      return item?.imageUrl ? [{ ImageURL: item.imageUrl }] : [];
-    }
+    return withFallback(
+      () => request(`/api/uploads/lost/${lostId}`),
+      () => {
+        const item = localLostItems.find((i) => String(i.LostID) === String(lostId));
+        return item?.imageUrl ? [{ ImageURL: item.imageUrl }] : [];
+      }
+    );
   },
 
   async getFoundItemImages(foundId) {
-    try {
-      return await request(`/api/uploads/found/${foundId}`);
-    } catch {
-      const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
-      return item?.imageUrl ? [{ ImageURL: item.imageUrl }] : [];
-    }
+    return withFallback(
+      () => request(`/api/uploads/found/${foundId}`),
+      () => {
+        const item = localFoundItems.find((i) => String(i.FoundID) === String(foundId));
+        return item?.imageUrl ? [{ ImageURL: item.imageUrl }] : [];
+      }
+    );
   },
 
   // ---------------- ML IMAGE SIMILARITY SERVICE ----------------
@@ -529,19 +657,9 @@ export const api = {
     }
   },
 
-  /**
-   * Compares two images using the FastAPI ml-service if running.
-   * If both are URLs, calls /ml/compare-image-urls
-   * If both are files/blobs/dataURLs, calls /ml/compare-images
-   * If service is offline or unsupported format, returns available: false without inventing a fake score.
-   */
   async compareImages(img1, img2) {
     try {
-      if (!img1 || !img2) {
-        return { available: false, reason: 'Both items must have photos' };
-      }
-
-      // Check if both are remote http URLs
+      if (!img1 || !img2) return { available: false, reason: 'Both items must have photos' };
       const isHttp1 = typeof img1 === 'string' && (img1.startsWith('http://') || img1.startsWith('https://'));
       const isHttp2 = typeof img2 === 'string' && (img2.startsWith('http://') || img2.startsWith('https://'));
 
@@ -553,16 +671,10 @@ export const api = {
         });
         if (res.ok) {
           const data = await res.json();
-          return {
-            available: true,
-            similarityScore: data.similarityScore, // actual score from PyTorch/NumPy
-            confidence: data.confidence,
-            featureVectorDim: data.featureVectorDim,
-          };
+          return { available: true, similarityScore: data.similarityScore, confidence: data.confidence };
         }
       }
 
-      // If data URLs or files, convert to Blob and call /ml/compare-images
       const toBlob = async (src) => {
         if (src instanceof Blob || src instanceof File) return src;
         if (typeof src === 'string' && (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('/'))) {
@@ -578,40 +690,22 @@ export const api = {
         formData.append('image1', blob1, 'lost_item.jpg');
         formData.append('image2', blob2, 'found_item.jpg');
 
-        const res = await fetch('/ml/compare-images', {
-          method: 'POST',
-          body: formData,
-        });
-
+        const res = await fetch('/ml/compare-images', { method: 'POST', body: formData });
         if (res.ok) {
           const data = await res.json();
-          return {
-            available: true,
-            similarityScore: data.similarityScore,
-            confidence: data.confidence,
-            featureVectorDim: data.featureVectorDim,
-          };
+          return { available: true, similarityScore: data.similarityScore, confidence: data.confidence };
         }
       }
-
-      return {
-        available: false,
-        reason: 'Image similarity service offline or endpoint unavailable',
-      };
+      return { available: false, reason: 'Image similarity service offline' };
     } catch (err) {
-      return {
-        available: false,
-        reason: err.message,
-      };
+      return { available: false, reason: err.message };
     }
   },
 
-  // ---------------- HEALTH CHECK ----------------
   async checkHealth() {
-    try {
-      return await request('/health');
-    } catch {
-      return { status: 'offline', db: 'local_mode' };
-    }
+    return withFallback(
+      () => request('/health'),
+      () => ({ status: 'offline', db: 'local_mode' })
+    );
   }
 };

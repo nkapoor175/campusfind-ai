@@ -59,7 +59,7 @@ cd ml-service
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --host 127.0.0.1 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8001
 ```
 
 ## Environment Variables
@@ -86,7 +86,7 @@ Configured in the Postman collection:
 | Variable | Description | Value |
 |---|---|---|
 | `baseUrl` | Base URL for the Node.js backend | `http://localhost:5000` |
-| `mlUrl` | Base URL for the separate Image Similarity service | `http://localhost:8000` |
+| `mlUrl` | Base URL for the separate Image Similarity service | `http://localhost:8001` |
 | `authToken` | JWT Bearer token obtained from login | *(dynamically set)* |
 
 ## Authentication

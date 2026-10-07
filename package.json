@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "smoke": "node scripts/smoke-test.js"
+    "smoke": "node scripts/smoke-test.js",
+    "demo:reset": "node scripts/demo-reset.js",
+    "demo:dump": "node scripts/demo-dump.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

@@ -22,7 +22,7 @@ npm install
 cp .env.example .env      # PowerShell: Copy-Item .env.example .env
 ```
 
-Then edit `.env` and set the database values (see [Database hosting](#database-hosting-local-mysql-or-railway) below) and a long random `JWT_SECRET`. `.env` is gitignored; never commit it.
+Then edit `.env` and set the database values (see [Database host](#database-host) below) and a long random `JWT_SECRET`. `.env` is gitignored; never commit it.
 
 ### 2. Database
 
@@ -33,7 +33,7 @@ node scripts/run-sql.js sql/schema.sql
 node scripts/run-sql.js sql/seed.sql
 ```
 
-This creates the `campusfind_ai` database with all 9 tables and loads demo data (3 students, 1 admin, 2 lost items, 2 found items, 2 pending matches).
+This creates the `campusfind_ai` database with all 9 tables and loads a small starter dataset (3 students, 1 admin, 2 lost items, 2 found items, 2 pending matches). For the full demo dataset with working logins, photos, claims and notifications, run `npm run demo:reset` instead (see [Demo](#demo)).
 
 > **`schema.sql` drops and recreates every table.** `run-sql.js` therefore refuses to run any file containing `DROP TABLE` against a database that already has rows, and lists the tables that would be wiped. Pass `--allow-drop` only if you really want that data gone. Schema changes for a database that already has data go in `sql/migrations/` instead.
 
@@ -48,21 +48,11 @@ node scripts/set-admin-password.js admin@campus.edu Admin@12345
 
 The migration adds `ADMIN.Password` and is safe to run more than once.
 
-### Database hosting: local MySQL or Railway
+### Database host
 
-The backend only cares about the five `DB_*` values in `.env`, so the same code runs against either.
+The backend only needs the five `DB_*` values in `.env`, so it runs against any MySQL 8 server. For a demo, use MySQL on the same computer: install MySQL 8, start it, then set `DB_HOST=127.0.0.1`, `DB_PORT=3306`, your `DB_USER` / `DB_PASSWORD`, and `DB_NAME=campusfind_ai`.
 
-**Local MySQL:** install MySQL 8, start it, then use `DB_HOST=127.0.0.1`, `DB_PORT=3306`, your `DB_USER` / `DB_PASSWORD`, and `DB_NAME=campusfind_ai`.
-
-**Railway MySQL:**
-
-1. In Railway, open your project, click the MySQL service, then open **Variables** (or **Settings → Networking → TCP Proxy**).
-2. Copy `RAILWAY_TCP_PROXY_DOMAIN` into `DB_HOST` and `RAILWAY_TCP_PROXY_PORT` into `DB_PORT`. The password shown for the service goes into `DB_PASSWORD`.
-3. Keep `DB_NAME=campusfind_ai`. Do **not** use Railway's default `railway` database: `schema.sql` creates and uses `campusfind_ai`.
-4. Do **not** use `mysql.railway.internal` from your own computer. That hostname only resolves inside Railway; from outside you must use the public TCP proxy domain.
-5. Run the two `run-sql.js` commands above once to create the tables.
-
-> Railway trial credit runs out. For a final submission, use a database that will still be running on demo day (local MySQL on the demo machine, or a hosted MySQL). Moving is a `.env` change plus re-running the two SQL files.
+A hosted MySQL works too if you point the same values at it, with two limits: `schema.sql` creates and uses a database called `campusfind_ai`, so the account must be allowed to create it, and the backend does not support providers that only accept TLS connections. Moving to another server is a `.env` change plus running the two SQL files there.
 
 ### 3. Start the backend
 
@@ -341,6 +331,60 @@ The schema defines 9 tables:
 - `NOTIFICATION`
 
 `MATCH_RECORD` is used instead of `MATCH` because `MATCH` is a MySQL reserved word.
+
+## Demo
+
+### Reset to the demo data
+
+```bash
+npm run demo:reset
+```
+
+This **erases the whole local `campusfind_ai` database** and loads the demo dataset (`sql/demo-data.sql`), then replaces the upload folders with the demo photos from `demo/images/`. It shows what it is about to erase and asks you to type `YES` (add `-- --yes` to skip the question). It refuses to run unless the database is on this computer and named `campusfind_ai`. It takes a few seconds, so run it before every rehearsal and before the real demo.
+
+| Who | Email | Password |
+|---|---|---|
+| Students | `navika@campus.edu`, `parthvi@campus.edu`, `rohan@campus.edu`, `aarav@campus.edu`, `ishita@campus.edu`, `kabir@campus.edu` | `Demo@12345` |
+| Admin | `admin@campus.edu` | `Admin@12345` |
+
+### What the demo data shows
+
+| Story | Records | Where it shows up |
+|---|---|---|
+| Matches waiting for review | Water Bottle with Steel Bottle, Wired Earphones with Earphones, Black Backpack with Black Laptop Bag | Matches and notifications with a similarity percentage. The bottle pair uses the same photo on both sides, so its image score is 1.0 |
+| A confirmed match with a claim waiting | Hostel Room Keys with Keys with Red Tag, and Rohan's Pending claim | Log in as the admin and approve the claim: the found item becomes `Claimed` and the lost report `Closed` |
+| A finished story | Brown Leather Wallet with Brown Wallet: Parthvi's claim rejected, Ishita's approved, wallet `Returned`, lost report `Closed` | Claim history and the full status lifecycle |
+| A rejected match | Scientific Calculator with Basic Calculator | Shows the `Rejected` status |
+| Waiting for the admin | Lost: Backpack, Umbrella, Calculator. Found: Basic Calculator | The admin's pending-verification list |
+
+### Live demo script (about 7 minutes)
+
+Black headphones are deliberately **not** in the data, so a live report produces one clean match. Start the backend and both Python services first (see [Run everything](#6-run-everything-3-terminals)), then use two browser windows (a normal one and a private one).
+
+1. **Navika** (`navika@campus.edu`) reports a lost item: `Black Sony Headphones`, category `Electronics`, brand `Sony`, colour `Black`, description `black sony over ear headphones`, location `Library`, photo `demo/images/headphones.png`.
+2. **Kabir** (`kabir@campus.edu`, second window) reports a found item: `Sony Headphones`, `Electronics`, `Sony`, `Black`, description `black sony headphones found near the library`, location `Library`, the same photo.
+3. Within a second a **Pending match** appears with a notification for both (about 78% with the text and image services running). The text alone scores 0.63, below the 0.7 threshold, so it is the matching photos that push it over: a good moment to explain the blended score.
+4. Navika opens her matches and **confirms** it. The lost report becomes `Matched`.
+5. Navika files a **claim**. Log in as `admin@campus.edu`, verify the reports, **approve** the claim (found item `Claimed`, lost report `Closed`), then mark the item **returned**.
+6. Open the database (MySQL Workbench or the command line) and show `DESCRIBE MATCH_RECORD;`: there is no score column, because the score is derived, never stored.
+7. Stop the text service and report another pair: matching still works through the built-in scorer.
+8. In Postman, show a student getting `403` on an admin route.
+
+Afterwards run `npm run demo:reset` to put everything back.
+
+### Backups
+
+```bash
+npm run demo:dump
+```
+
+writes the whole database to `backups/campusfind_<date-time>.sql` (the folder is gitignored). To restore it on a computer with the same operating system:
+
+```bash
+node scripts/run-sql.js backups/<file>.sql --allow-drop
+```
+
+`mysqldump` on Windows writes table names in lowercase, so a dump taken on Windows does not match the uppercase names the code uses if restored on Linux or macOS. To rebuild the demo on any other machine, run `npm run demo:reset` there instead: it works everywhere and needs nothing but MySQL and Node.
 
 ## Testing
 

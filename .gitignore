@@ -3,6 +3,13 @@ node_modules/
 *.log
 .DS_Store
 
+# Uploaded photos (the demo reset copies photos in here) and database backups: never commit these
+uploads/lost/*
+uploads/found/*
+!uploads/lost/.gitkeep
+!uploads/found/.gitkeep
+backups/
+
 # Python service
 python-service/__pycache__/
 python-service/venv/

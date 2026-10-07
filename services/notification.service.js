@@ -25,6 +25,24 @@ async function getNotificationsByStudent(studentId) {
 }
 
 /**
+ * Look up which student a notification belongs to
+ * @param {number} notificationId
+ * @returns {Promise<number>} StudentID of the recipient
+ */
+async function getNotificationOwnerId(notificationId) {
+  const [rows] = await pool.execute(
+    'SELECT StudentID FROM NOTIFICATION WHERE NotificationID = ?',
+    [notificationId]
+  );
+  if (rows.length === 0) {
+    const error = new Error('Notification not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  return rows[0].StudentID;
+}
+
+/**
  * Mark a single notification as read
  * @param {number} notificationId
  */
@@ -150,6 +168,7 @@ async function createNotification(studentId, message, matchId = null) {
 
 module.exports = {
   getNotificationsByStudent,
+  getNotificationOwnerId,
   markAsRead,
   createMatchNotification,
   createNotification,

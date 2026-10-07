@@ -32,9 +32,10 @@ CREATE TABLE STUDENT (
 
 -- 2. ADMIN
 CREATE TABLE ADMIN (
-    AdminID INT AUTO_INCREMENT PRIMARY KEY,
-    Name    VARCHAR(100) NOT NULL,
-    Email   VARCHAR(150) NOT NULL UNIQUE
+    AdminID  INT AUTO_INCREMENT PRIMARY KEY,
+    Name     VARCHAR(100) NOT NULL,
+    Email    VARCHAR(150) NOT NULL UNIQUE,
+    Password VARCHAR(255)          -- bcrypt hash; NULL means this admin cannot log in yet
 );
 
 -- 3. LOST_ITEM

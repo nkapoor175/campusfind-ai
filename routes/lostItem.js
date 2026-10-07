@@ -1,12 +1,12 @@
 const express = require('express');
 const pool = require('../config/db');
-const authenticate = require('../middleware/auth');
+const { requireStudent } = require('../middleware/auth');
 const { runAutoMatchForLostItem } = require('../services/autoMatchService');
 
 const router = express.Router();
 
 // POST /api/lost-items - create (authed)
-router.post('/', authenticate, async (req, res) => {
+router.post('/', requireStudent, async (req, res) => {
     const { itemName, category, brand, color, description, dateLost, lostLocation } = req.body;
 
     if (!itemName) {

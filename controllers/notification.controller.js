@@ -12,6 +12,11 @@ async function getNotificationsByStudent(req, res) {
       return res.status(400).json({ message: 'Invalid student ID' });
     }
 
+    // A student may only read their own notifications; admins may read anyone's
+    if (req.user.role !== 'admin' && req.user.studentId !== studentId) {
+      return res.status(403).json({ message: 'You can only view your own notifications' });
+    }
+
     const notifications = await notificationService.getNotificationsByStudent(studentId);
     return res.status(200).json(notifications);
   } catch (error) {
@@ -33,6 +38,14 @@ async function markAsRead(req, res) {
 
     if (isNaN(notificationId) || notificationId <= 0) {
       return res.status(400).json({ message: 'Invalid notification ID' });
+    }
+
+    // A student may only mark their own notifications; admins may mark any
+    if (req.user.role !== 'admin') {
+      const ownerId = await notificationService.getNotificationOwnerId(notificationId);
+      if (ownerId !== req.user.studentId) {
+        return res.status(403).json({ message: 'You can only update your own notifications' });
+      }
     }
 
     const updatedNotification = await notificationService.markAsRead(notificationId);

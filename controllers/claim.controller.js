@@ -2,20 +2,18 @@ const claimService = require('../services/claim.service');
 
 /**
  * POST /api/claims
- * File a claim for a found item
+ * File a claim for a found item. The claimant is the logged-in student (from the token);
+ * a studentId in the request body is ignored.
  */
 async function createClaim(req, res) {
   try {
-    const { studentId, foundId } = req.body;
+    const { foundId } = req.body;
 
-    if (
-      studentId === undefined || studentId === null || isNaN(Number(studentId)) || Number(studentId) <= 0 ||
-      foundId === undefined || foundId === null || isNaN(Number(foundId)) || Number(foundId) <= 0
-    ) {
-      return res.status(400).json({ message: 'Invalid or missing studentId or foundId' });
+    if (foundId === undefined || foundId === null || isNaN(Number(foundId)) || Number(foundId) <= 0) {
+      return res.status(400).json({ message: 'Invalid or missing foundId' });
     }
 
-    const newClaim = await claimService.createClaim(Number(studentId), Number(foundId));
+    const newClaim = await claimService.createClaim(req.user.studentId, Number(foundId));
     return res.status(201).json({
       message: 'Claim submitted successfully',
       claim: newClaim,
@@ -77,19 +75,16 @@ async function getClaimsByFoundItem(req, res) {
 
 /**
  * PUT /api/claims/:id/status
- * Admin updates claim status (Approved / Rejected) and verification notes
+ * Admin updates claim status (Approved / Rejected) and verification notes.
+ * The deciding admin is taken from the token; an adminId in the request body is ignored.
  */
 async function updateClaimStatus(req, res) {
   try {
     const claimId = parseInt(req.params.id, 10);
-    const { adminId, claimStatus, verificationNotes } = req.body;
+    const { claimStatus, verificationNotes } = req.body;
 
     if (isNaN(claimId) || claimId <= 0) {
       return res.status(400).json({ message: 'Invalid claim ID' });
-    }
-
-    if (adminId === undefined || adminId === null || isNaN(Number(adminId)) || Number(adminId) <= 0) {
-      return res.status(400).json({ message: 'Invalid or missing adminId' });
     }
 
     const allowedStatuses = ['Approved', 'Rejected'];
@@ -99,7 +94,7 @@ async function updateClaimStatus(req, res) {
 
     const updatedClaim = await claimService.updateClaimStatus(
       claimId,
-      Number(adminId),
+      req.user.adminId,
       claimStatus,
       verificationNotes
     );

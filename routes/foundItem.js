@@ -1,12 +1,12 @@
 const express = require('express');
 const pool = require('../config/db');
-const authenticate = require('../middleware/auth');
+const { requireStudent } = require('../middleware/auth');
 const { runAutoMatchForFoundItem } = require('../services/autoMatchService');
 
 const router = express.Router();
 
 // POST /api/found-items - create (authed)
-router.post('/', authenticate, async (req, res) => {
+router.post('/', requireStudent, async (req, res) => {
     const { itemName, category, brand, color, description, dateFound, foundLocation } = req.body;
 
     if (!itemName) {

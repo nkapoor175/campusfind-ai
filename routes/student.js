@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
-const authenticate = require('../middleware/auth');
+const { requireStudent } = require('../middleware/auth');
 
 const router = express.Router();
 const SALT_ROUNDS = 10;
@@ -64,7 +64,7 @@ router.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign(
-            { studentId: student.StudentID },
+            { studentId: student.StudentID, role: 'student' },
             process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -77,7 +77,7 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /api/students/me
-router.get('/me', authenticate, async (req, res) => {
+router.get('/me', requireStudent, async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM STUDENT WHERE StudentID = ?', [req.user.studentId]);
         if (rows.length === 0) {

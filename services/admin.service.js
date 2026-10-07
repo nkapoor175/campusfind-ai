@@ -1,4 +1,43 @@
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+
+/**
+ * Log an admin in with email and password and issue an admin JWT
+ * @param {string} email
+ * @param {string} password
+ */
+async function loginAdmin(email, password) {
+  const [rows] = await pool.execute(
+    'SELECT AdminID, Name, Email, Password FROM ADMIN WHERE Email = ?',
+    [email]
+  );
+
+  // Unknown email, an admin with no password set yet, and a wrong password all look the same
+  const invalid = new Error('Invalid email or password');
+  invalid.statusCode = 401;
+
+  if (rows.length === 0 || !rows[0].Password) {
+    throw invalid;
+  }
+
+  const matches = await bcrypt.compare(password, rows[0].Password);
+  if (!matches) {
+    throw invalid;
+  }
+
+  const admin = rows[0];
+  const token = jwt.sign(
+    { adminId: admin.AdminID, role: 'admin' },
+    process.env.JWT_SECRET,
+    { expiresIn: '12h' }
+  );
+
+  return {
+    token,
+    admin: { AdminID: admin.AdminID, Name: admin.Name, Email: admin.Email },
+  };
+}
 
 /**
  * Fetch all lost and found items where AdminID is NULL (pending verification)
@@ -119,6 +158,7 @@ async function verifyFoundItem(foundId, adminId) {
 }
 
 module.exports = {
+  loginAdmin,
   getPendingItems,
   verifyLostItem,
   verifyFoundItem,

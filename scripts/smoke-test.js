@@ -3,7 +3,8 @@
 // Usage:  npm run smoke              run the whole flow, then delete everything it created
 //         npm run smoke -- --keep    run the whole flow and LEAVE the data in place (for demos)
 //
-// Needs: the backend running (npm start) and the seeded admin (AdminID 1, see sql/seed.sql).
+// Needs: the backend running (npm start) and the seeded demo admin (admin@campus.edu, see sql/seed.sql).
+// Override the admin login with SMOKE_ADMIN_EMAIL / SMOKE_ADMIN_PASSWORD, the server with SMOKE_BASE_URL.
 // The text and image services are optional; the backend falls back to its built-in scorer.
 // Everything is checked through the HTTP API; the database is only touched at the end to clean up.
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -11,7 +12,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const mysql = require('mysql2/promise');
 
 const BASE_URL = process.env.SMOKE_BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
-const ADMIN_ID = Number(process.env.SMOKE_ADMIN_ID || 1);
+const ADMIN_EMAIL = process.env.SMOKE_ADMIN_EMAIL || 'admin@campus.edu';
+const ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD || 'Admin@12345';
 const PASSWORD = 'Smoke@12345';
 const KEEP = process.argv.includes('--keep');
 
@@ -126,7 +128,16 @@ async function main() {
     check('login with a wrong password returns 401', wrong.status === 401);
     if (!people.owner.token || !people.finder.token) return;
 
-    // 3. report a lost and a found item (descriptions chosen to match each other)
+    // 3. admin login
+    const adminLogin = await call('POST', '/api/admin/login', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    check(`admin login (${ADMIN_EMAIL})`, adminLogin.status === 200 && !!adminLogin.data.token,
+        adminLogin.status !== 200 ? `status ${adminLogin.status}: ${JSON.stringify(adminLogin.data)}. Is the demo admin seeded with a password? See README.` : '');
+    const adminToken = adminLogin.data && adminLogin.data.token;
+    if (!adminToken) return;
+    const adminWrong = await call('POST', '/api/admin/login', { email: ADMIN_EMAIL, password: 'wrong-password' });
+    check('admin login with a wrong password returns 401', adminWrong.status === 401);
+
+    // 4. report a lost and a found item (descriptions chosen to match each other)
     const lostRes = await call('POST', '/api/lost-items', {
         itemName: `Smoke ${runId} black boAt earbuds`, category: 'Electronics', brand: 'boAt', color: 'Black',
         description: 'Black boAt earbuds', lostLocation: 'Library'
@@ -144,29 +155,31 @@ async function main() {
     if (found && found.FoundID) created.foundIds.push(found.FoundID);
     if (!lost || !found || !lost.LostID || !found.FoundID) return;
 
-    // 4. admin: pending list, verify both
-    const pending = await call('GET', '/api/admin/pending');
+    // 5. admin: pending list and verification need an admin token
+    check('admin pending without a token returns 401', (await call('GET', '/api/admin/pending')).status === 401);
+    check('admin pending with a student token returns 403', (await call('GET', '/api/admin/pending', null, people.owner.token)).status === 403);
+    const pending = await call('GET', '/api/admin/pending', null, adminToken);
     check('admin pending lists both new reports',
         pending.status === 200
         && pending.data.lostItems.some((i) => i.LostID === lost.LostID)
         && pending.data.foundItems.some((i) => i.FoundID === found.FoundID));
-    const verifyLost = await call('PUT', `/api/admin/lost/${lost.LostID}/verify`, { adminId: ADMIN_ID });
+    const verifyLost = await call('PUT', `/api/admin/lost/${lost.LostID}/verify`, null, adminToken);
     check('admin verifies the lost item', verifyLost.status === 200, verifyLost.status !== 200 ? `status ${verifyLost.status}: ${JSON.stringify(verifyLost.data)}` : '');
-    const verifyFound = await call('PUT', `/api/admin/found/${found.FoundID}/verify`, { adminId: ADMIN_ID });
+    const verifyFound = await call('PUT', `/api/admin/found/${found.FoundID}/verify`, null, adminToken);
     check('admin verifies the found item', verifyFound.status === 200, verifyFound.status !== 200 ? `status ${verifyFound.status}: ${JSON.stringify(verifyFound.data)}` : '');
-    const pendingAfter = await call('GET', '/api/admin/pending');
+    const pendingAfter = await call('GET', '/api/admin/pending', null, adminToken);
     check('verified reports leave the pending list',
         pendingAfter.status === 200
         && !pendingAfter.data.lostItems.some((i) => i.LostID === lost.LostID)
         && !pendingAfter.data.foundItems.some((i) => i.FoundID === found.FoundID));
 
-    // 5. candidates (live scores)
+    // 6. candidates (live scores)
     const candidates = await call('GET', `/api/matches/candidates/${lost.LostID}`);
     const entry = candidates.status === 200 && candidates.data.find((c) => c.foundItem.FoundID === found.FoundID);
     check('candidates lists the found item with a score', !!entry && typeof entry.score === 'number' && entry.score > 0,
         entry ? `score ${entry.score}, text ${entry.textScore}, image ${entry.imageScore}` : '');
 
-    // 6. automatic matching created a Pending match
+    // 7. automatic matching created a Pending match
     const match = await waitFor(async () => {
         const all = await call('GET', '/api/matches');
         return all.status === 200 && all.data.find((m) => m.LostID === lost.LostID && m.FoundID === found.FoundID);
@@ -174,33 +187,41 @@ async function main() {
     check('auto-match created a Pending match', !!match && match.MatchStatus === 'Pending', match ? `MatchID ${match.MatchID}` : 'none appeared within 15s');
     if (!match) return;
 
-    // 7. confirm the match: statuses and notifications
+    // 8. confirm the match (only the lost item's owner or an admin may): statuses and notifications
+    const finderConfirm = await call('PATCH', `/api/matches/${match.MatchID}/status`, { status: 'Confirmed' }, people.finder.token);
+    check('the finder cannot confirm the match (403)', finderConfirm.status === 403);
     const confirm = await call('PATCH', `/api/matches/${match.MatchID}/status`, { status: 'Confirmed' }, people.owner.token);
-    check('confirm the match', confirm.status === 200 && confirm.data.MatchStatus === 'Confirmed');
+    check('the lost owner confirms the match', confirm.status === 200 && confirm.data.MatchStatus === 'Confirmed');
     const lostAfterConfirm = await call('GET', `/api/lost-items/${lost.LostID}`);
     check('lost item is now Matched', lostAfterConfirm.data.Status === 'Matched');
-    const ownerNotes = await call('GET', `/api/notifications/student/${people.owner.id}`);
-    const finderNotes = await call('GET', `/api/notifications/student/${people.finder.id}`);
+    const ownerNotes = await call('GET', `/api/notifications/student/${people.owner.id}`, null, people.owner.token);
+    const finderNotes = await call('GET', `/api/notifications/student/${people.finder.id}`, null, people.finder.token);
     check('lost owner has a notification for the confirmed match',
         ownerNotes.status === 200 && ownerNotes.data.some((n) => n.MatchID === match.MatchID && /confirmed match/.test(n.Message)));
     check('finder has a notification for the confirmed match',
         finderNotes.status === 200 && finderNotes.data.some((n) => n.MatchID === match.MatchID && /was confirmed/.test(n.Message)));
+    check('a student cannot read another student\'s notifications (403)',
+        (await call('GET', `/api/notifications/student/${people.finder.id}`, null, people.owner.token)).status === 403);
 
-    // 8. claim and approve
-    const claim = await call('POST', '/api/claims', { studentId: people.owner.id, foundId: found.FoundID });
-    check('lost owner files a claim on the found item', claim.status === 201, `ClaimID ${claim.data && claim.data.claim && claim.data.claim.ClaimID}`);
+    // 9. claim and approve (the claimant comes from the token, the deciding admin from the admin token)
+    check('filing a claim without a token returns 401', (await call('POST', '/api/claims', { foundId: found.FoundID })).status === 401);
+    const claim = await call('POST', '/api/claims', { foundId: found.FoundID }, people.owner.token);
+    check('lost owner files a claim on the found item', claim.status === 201 && claim.data.claim.StudentID === people.owner.id,
+        `ClaimID ${claim.data && claim.data.claim && claim.data.claim.ClaimID}`);
     if (claim.status !== 201) return;
     const claimId = claim.data.claim.ClaimID;
-    const approve = await call('PUT', `/api/claims/${claimId}/status`, { adminId: ADMIN_ID, claimStatus: 'Approved', verificationNotes: 'smoke test' });
+    check('a student cannot approve a claim (403)',
+        (await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved' }, people.owner.token)).status === 403);
+    const approve = await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved', verificationNotes: 'smoke test' }, adminToken);
     check('admin approves the claim', approve.status === 200 && approve.data.claim.ClaimStatus === 'Approved');
     const foundAfter = await call('GET', `/api/found-items/${found.FoundID}`);
     const lostAfter = await call('GET', `/api/lost-items/${lost.LostID}`);
     check('found item is now Claimed', foundAfter.data.Status === 'Claimed');
     check('lost item is now Closed', lostAfter.data.Status === 'Closed');
-    const ownerNotesAfter = await call('GET', `/api/notifications/student/${people.owner.id}`);
+    const ownerNotesAfter = await call('GET', `/api/notifications/student/${people.owner.id}`, null, people.owner.token);
     check('claimant is notified the claim was approved',
         ownerNotesAfter.status === 200 && ownerNotesAfter.data.some((n) => n.MatchID === null && /was approved/.test(n.Message)));
-    const approveAgain = await call('PUT', `/api/claims/${claimId}/status`, { adminId: ADMIN_ID, claimStatus: 'Approved' });
+    const approveAgain = await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved' }, adminToken);
     check('approving the same item twice returns 409', approveAgain.status === 409);
 
     if (KEEP) {
@@ -208,6 +229,7 @@ async function main() {
         console.log(`  Lost owner: ${people.owner.email}  (StudentID ${people.owner.id})`);
         console.log(`  Finder:     ${people.finder.email}  (StudentID ${people.finder.id})`);
         console.log(`  Password for both: ${PASSWORD}`);
+        console.log(`  Admin login: ${ADMIN_EMAIL}`);
         console.log(`  Lost item ${lost.LostID}, found item ${found.FoundID}, match ${match.MatchID}, claim ${claimId}`);
     }
 }

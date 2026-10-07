@@ -9,8 +9,10 @@ INSERT INTO STUDENT (Name, Email, Phone, Department, Year, Hostel, Password) VAL
 ('Parthvi Sharma', 'parthvi@campus.edu', '9876543211', 'Computer Science', 3, 'Hostel B', 'placeholder_not_a_real_hash'),
 ('Rohan Mehta', 'rohan@campus.edu', '9876543212', 'Electronics', 2, 'Hostel C', 'placeholder_not_a_real_hash');
 
-INSERT INTO ADMIN (Name, Email) VALUES
-('Campus Security Admin', 'admin@campus.edu');
+-- Demo admin login: admin@campus.edu / Admin@12345 (stored below as a real bcrypt hash).
+-- Change it for anything beyond a demo: node scripts/set-admin-password.js admin@campus.edu <new-password>
+INSERT INTO ADMIN (Name, Email, Password) VALUES
+('Campus Security Admin', 'admin@campus.edu', '$2b$10$zK/KEKT9ksqQjpmkI8mrkORHsnKc6cewzsCVXD5VJh.LzC6BCTxtO');
 
 INSERT INTO LOST_ITEM (ItemName, Category, Brand, Color, Description, DateLost, LostLocation, StudentID) VALUES
 ('Water Bottle', 'Accessories', 'Milton', 'Blue', 'Steel water bottle with a dented cap, has a college sticker on it', '2026-09-10', 'Library', 1),

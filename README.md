@@ -37,7 +37,16 @@ This creates the `campusfind_ai` database with all 9 tables and loads demo data 
 
 > **`schema.sql` drops and recreates every table.** `run-sql.js` therefore refuses to run any file containing `DROP TABLE` against a database that already has rows, and lists the tables that would be wiped. Pass `--allow-drop` only if you really want that data gone. Schema changes for a database that already has data go in `sql/migrations/` instead.
 
-> Seed passwords are plain placeholder strings, not bcrypt hashes, so **seeded students cannot log in**. They exist to populate foreign keys for testing. Create real accounts with `POST /api/students/register`, which hashes passwords with bcrypt. The seeded admin is `AdminID 1` (`admin@campus.edu`); the admin endpoints currently take `adminId` in the request body.
+> Seed passwords are plain placeholder strings, not bcrypt hashes, so **seeded students cannot log in**. They exist to populate foreign keys for testing. Create real accounts with `POST /api/students/register`, which hashes passwords with bcrypt. The exception is the seeded admin (`AdminID 1`): it has a real bcrypt hash so you can log in at `POST /api/admin/login` as `admin@campus.edu` / `Admin@12345`.
+
+**Upgrading a database that already has data** (for example one created before admins could log in): do not re-run `schema.sql`. Apply the migration, then give the admin a password:
+
+```bash
+node scripts/run-sql.js sql/migrations/001_admin_password.sql
+node scripts/set-admin-password.js admin@campus.edu Admin@12345
+```
+
+The migration adds `ADMIN.Password` and is safe to run more than once.
 
 ### Database hosting: local MySQL or Railway
 
@@ -109,13 +118,13 @@ With the backend running (and ideally both Python services), run the whole flow 
 npm run smoke
 ```
 
-It registers two fresh users, reports a lost and a found item, has the seeded admin verify them, checks candidate scores, waits for the automatic match, confirms it, files and approves a claim, and checks every status and notification along the way. Each check prints `PASS` or `FAIL`; the exit code is non-zero if anything fails. By default it deletes everything it created. To leave the data in place for a demo (it prints the two test logins), run:
+It registers two fresh users, logs in as the demo admin, reports a lost and a found item, has the admin verify them, checks candidate scores, waits for the automatic match, confirms it, files and approves a claim, and checks every status and notification along the way, including that the wrong role or the wrong student is refused (`401` / `403`). Each check prints `PASS` or `FAIL`; the exit code is non-zero if anything fails. By default it deletes everything it created. To leave the data in place for a demo (it prints the two test logins), run:
 
 ```bash
 npm run smoke -- --keep
 ```
 
-It expects the seeded admin (`AdminID 1`); set `SMOKE_ADMIN_ID` or `SMOKE_BASE_URL` in the environment to override the admin id or server address.
+It expects the demo admin (`admin@campus.edu` / `Admin@12345`, see [Authentication](#authentication)); set `SMOKE_ADMIN_EMAIL`, `SMOKE_ADMIN_PASSWORD` or `SMOKE_BASE_URL` in the environment to override the admin login or server address.
 
 ## Environment Variables
 
@@ -146,26 +155,33 @@ Configured in the Postman collection:
 |---|---|---|
 | `baseUrl` | Base URL for the Node.js backend | `http://localhost:5000` |
 | `mlUrl` | Base URL for the separate Image Similarity service | `http://localhost:8001` |
-| `authToken` | JWT Bearer token obtained from login | *(dynamically set)* |
+| `authToken` | Student JWT, saved by **Login Student** | *(dynamically set)* |
+| `adminToken` | Admin JWT, saved by **Admin Login** | *(dynamically set)* |
 
 ## Authentication
 
-Authentication is handled via JWT bearer tokens.
+Authentication is handled via JWT bearer tokens (`Authorization: Bearer <token>`). There are two roles:
 
-### Public Endpoints
-- `POST /api/students/register`
-- `POST /api/students/login`
+| Role | How to get a token | Token contents | Lifetime |
+|---|---|---|---|
+| **Student** | `POST /api/students/login` | `{ studentId, role: "student" }` | 7 days |
+| **Admin** | `POST /api/admin/login` with an admin's email and password | `{ adminId, role: "admin" }` | 12 hours |
 
-### Protected Endpoints (Require JWT)
-- `GET /api/students/me`
-- `POST /api/lost-items`
-- `POST /api/found-items`
-- `POST /api/matches`
-- `PATCH /api/matches/:id/status`
+Admin passwords are stored as bcrypt hashes in `ADMIN.Password`. The demo admin from `sql/seed.sql` is `admin@campus.edu` / `Admin@12345`; change it with `node scripts/set-admin-password.js admin@campus.edu <new-password>` for anything beyond a demo.
 
-On protected routes, the student's identity is derived directly from `req.user.studentId` in the decoded token.
+### Who can call what
 
-> **Note:** The Admin, Claim, Notification, and Image Upload endpoints currently do not enforce JWT.
+| Access | Endpoints |
+|---|---|
+| **Public** | `GET /health`, `POST /api/students/register`, `POST /api/students/login`, `POST /api/admin/login`, all `GET` lost/found item routes, `GET /api/matches*` (including `/candidates/:lostId`), `GET /api/claims/student/:studentId`, `GET /api/claims/found/:foundId`, `GET /api/uploads/*`, and the static `/uploads/*` photos |
+| **Student token only** | `GET /api/students/me`, `POST /api/lost-items`, `POST /api/found-items`, `POST /api/claims` |
+| **Any valid token** | `POST /api/matches` |
+| **Owner or admin** | `PATCH /api/matches/:id/status` (the lost item's owner), `POST /api/uploads/lost/:lostId` and `POST /api/uploads/found/:foundId` (the student who reported that item), `GET /api/notifications/student/:studentId` and `PUT /api/notifications/:id/read` (the notification's own student) |
+| **Admin token only** | `GET /api/admin/pending`, `PUT /api/admin/lost/:id/verify`, `PUT /api/admin/found/:id/verify`, `PUT /api/claims/:id/status` |
+
+Responses: no or invalid token is `401`; a valid token of the wrong role, or someone else's record, is `403`.
+
+Identity always comes from the token, never from the request. The student on a new report or claim is `req.user.studentId`, and the admin who verifies an item or decides a claim is `req.user.adminId`; a `studentId` or `adminId` in a request body is ignored. Student tokens issued before roles existed (no `role` claim) are still accepted as student tokens.
 
 ## How Match Scores Work
 
@@ -217,7 +233,7 @@ Notifications are created for these events (a failed notification never undoes t
 
 ## API Reference
 
-The project API includes 34 requests across the following modules:
+The project API includes 35 requests across the following modules. In the `Auth` column, "Student", "Admin" and "Owner or admin" are explained under [Authentication](#authentication).
 
 ### Health
 
@@ -231,13 +247,13 @@ The project API includes 34 requests across the following modules:
 |---|---|---|---|
 | POST | `/api/students/register` | none | Register a new student account (bcrypt-hashed password) |
 | POST | `/api/students/login` | none | Authenticate student and receive a JWT |
-| GET | `/api/students/me` | JWT | Get authenticated student profile from decoded token |
+| GET | `/api/students/me` | Student | Get authenticated student profile from decoded token |
 
 ### Lost Item
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/lost-items` | JWT | Create a new lost item report |
+| POST | `/api/lost-items` | Student | Create a new lost item report |
 | GET | `/api/lost-items` | none | List all lost items |
 | GET | `/api/lost-items/student/:studentId` | none | List lost items reported by a specific student |
 | GET | `/api/lost-items/:id` | none | Get details of a specific lost item by ID |
@@ -246,7 +262,7 @@ The project API includes 34 requests across the following modules:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/found-items` | JWT | Create a new found item report |
+| POST | `/api/found-items` | Student | Create a new found item report |
 | GET | `/api/found-items` | none | List all found items |
 | GET | `/api/found-items/student/:studentId` | none | List found items reported by a specific student |
 | GET | `/api/found-items/:id` | none | Get details of a specific found item by ID |
@@ -256,41 +272,42 @@ The project API includes 34 requests across the following modules:
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/api/matches/candidates/:lostId` | none | Compute live match candidate scores for a lost item (`score`, `textScore`, `imageScore`) |
-| POST | `/api/matches` | JWT | Create a match record between a lost item and a found item |
+| POST | `/api/matches` | Any token | Create a match record between a lost item and a found item |
 | GET | `/api/matches` | none | List all match records |
 | GET | `/api/matches/:id` | none | Get a match record by ID |
-| PATCH | `/api/matches/:id/status` | JWT | Update match status (Pending, Confirmed, Rejected) |
+| PATCH | `/api/matches/:id/status` | Owner or admin | Update match status (Pending, Confirmed, Rejected); only the lost item's owner or an admin |
 
 ### Admin
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/admin/pending` | none | List pending lost and found items awaiting verification |
-| PUT | `/api/admin/lost/:id/verify` | none | Verify a lost item report |
-| PUT | `/api/admin/found/:id/verify` | none | Verify a found item report |
+| POST | `/api/admin/login` | none | Admin logs in with email and password and receives an admin JWT (`{ token, admin }`) |
+| GET | `/api/admin/pending` | Admin | List pending lost and found items awaiting verification |
+| PUT | `/api/admin/lost/:id/verify` | Admin | Verify a lost item report (the admin comes from the token) |
+| PUT | `/api/admin/found/:id/verify` | Admin | Verify a found item report (the admin comes from the token) |
 
 ### Claim
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/claims` | none | Submit an ownership claim for a found item |
+| POST | `/api/claims` | Student | Submit an ownership claim for a found item (body: `foundId`; the claimant comes from the token) |
 | GET | `/api/claims/student/:studentId` | none | List all claims submitted by a student |
 | GET | `/api/claims/found/:foundId` | none | List all claims associated with a found item |
-| PUT | `/api/claims/:id/status` | none | Update claim status |
+| PUT | `/api/claims/:id/status` | Admin | Approve or reject a claim (the deciding admin comes from the token) |
 
 ### Notification
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/notifications/student/:studentId` | none | Retrieve notifications for a specific student |
-| PUT | `/api/notifications/:id/read` | none | Mark a specific notification as read |
+| GET | `/api/notifications/student/:studentId` | Owner or admin | Retrieve notifications for a specific student (that student, or an admin) |
+| PUT | `/api/notifications/:id/read` | Owner or admin | Mark a specific notification as read (its own student, or an admin) |
 
 ### Image Upload
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/uploads/lost/:lostId` | none | Upload images for a lost item |
-| POST | `/api/uploads/found/:foundId` | none | Upload images for a found item |
+| POST | `/api/uploads/lost/:lostId` | Owner or admin | Upload images for a lost item (only the student who reported it, or an admin) |
+| POST | `/api/uploads/found/:foundId` | Owner or admin | Upload images for a found item (only the student who reported it, or an admin) |
 | GET | `/api/uploads/lost/:lostId` | none | Retrieve image URLs for a lost item |
 | GET | `/api/uploads/found/:foundId` | none | Retrieve image URLs for a found item |
 
@@ -326,7 +343,7 @@ The schema defines 9 tables:
 
 ### Postman Collection
 
-The Postman collection is located at `postman/CampusFind_AI_Assigned_Modules.postman_collection.json` and contains 34 requests covering all endpoints. Request descriptions in the Match and Claim folders explain the status changes and `409` rules described above.
+The Postman collection is located at `postman/CampusFind_AI_Assigned_Modules.postman_collection.json` and contains 35 requests covering all endpoints. Request descriptions in the Match and Claim folders explain the status changes and `409` rules described above.
 
 Instructions:
 1. Start the Node backend (`npm start`).
@@ -335,7 +352,8 @@ Instructions:
 4. Verify collection variables:
    - `baseUrl = http://localhost:5000`
    - `mlUrl = http://localhost:8001`
-5. Send **Login Student** (in the Student folder) first; the returned JWT is automatically saved as `authToken`.
+5. Send **Login Student** (Student folder) first; the returned JWT is saved as `authToken` and used by the student requests. Set the `studentId` variable to that student's own ID, since students can only read their own notifications.
+6. For admin requests (pending list, verify, **Claim / Update Claim Status**) send **Admin Login** (Admin folder) first; its JWT is saved as `adminToken`.
 
 ### Image Similarity Tests
 
@@ -348,7 +366,7 @@ cd ml-service
 
 ## Conventions
 
-- `StudentID` on any write always comes from the decoded JWT (`req.user.studentId`), never trusted from the request body.
+- `StudentID` on any write always comes from the decoded JWT (`req.user.studentId`), and the acting admin from `req.user.adminId`; neither is ever trusted from the request body.
 - All SQL uses `?` placeholders — no string-concatenated queries.
 - Passwords are bcrypt-hashed before storage and never returned in API responses.
 - Status codes: `201` create, `404` not found, `401` auth failure, `409` conflict, `500` + logged error on failure.
@@ -357,6 +375,7 @@ cd ml-service
 ## Database Design Notes
 
 - 9 tables: `STUDENT`, `ADMIN`, `LOST_ITEM`, `LOST_ITEM_IMAGE`, `FOUND_ITEM`, `FOUND_ITEM_IMAGE`, `MATCH_RECORD`, `CLAIM`, `NOTIFICATION`.
+- `ADMIN` is `ADMIN(AdminID, Name, Email, Password)`, where `Password` is a nullable bcrypt hash (an admin with no password cannot log in).
 - `LOST_ITEM_IMAGE` / `FOUND_ITEM_IMAGE` resolve the multivalued `ImageURL` attribute via composite PKs and cascade delete.
 - `MATCH_RECORD` is named to avoid the `MATCH` reserved word in MySQL, and has no `MatchScore` column — the score is derived live by the matching service, not stored (a normalization decision).
 - `MATCH` and `CLAIM` started as M:N relationships in the ER diagram but were promoted to full entities because they needed their own attributes and a referenceable ID (e.g. `NOTIFICATION.MatchID` points at one specific match).

@@ -129,7 +129,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// PATCH /api/matches/:id/status - update match status (authed)
+// PATCH /api/matches/:id/status - update match status (authed: the lost item's owner, or an admin)
 //
 // The match update and the lost item's status change run in one transaction:
 //   - into Confirmed:  LOST_ITEM.Status becomes 'Matched'
@@ -169,6 +169,12 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             throw httpError(404, 'Match record not found');
         }
         match = rows[0];
+
+        // Only the owner of the lost item (or an admin) may confirm, reject or reopen its match
+        const [[lostOwner]] = await connection.query('SELECT StudentID FROM LOST_ITEM WHERE LostID = ?', [match.LostID]);
+        if (req.user.role !== 'admin' && lostOwner.StudentID !== req.user.studentId) {
+            throw httpError(403, 'Only the owner of the lost item or an admin can change this match');
+        }
 
         const wasConfirmed = match.MatchStatus === 'Confirmed';
         becameConfirmed = status === 'Confirmed' && !wasConfirmed;

@@ -89,6 +89,31 @@
             "listen": "test",
             "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
           }]
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"},
+              {"key": "Content-Type", "value": "application/json", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"phone\": \"1234567890\",\n  \"department\": \"CSE\",\n  \"year\": 3,\n  \"hostel\": \"A1\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "students", "me"]
+            },
+            "description": "Edit the logged-in student's own profile (student token required). Only name, phone, department, year (1 to 10) and hostel can change; send any subset. null or an empty string clears an optional field. Email, password and StudentID can never be changed here and are ignored if sent."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
         }
       ]
     },
@@ -422,6 +447,45 @@
             },
             "description": "Mark a found item as verified. Admin token required; the verifying admin is taken from the token (no body needed)."
           }
+        },
+        {
+          "name": "Mark Found Item Returned",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/found/{{foundId}}/return",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "found", "{{foundId}}", "return"]
+            },
+            "description": "Mark a found item as handed back to its owner (Claimed to Returned) and close the lost report it was confirmed against. Admin token required. Returns 409 unless the found item is Claimed."
+          }
+        },
+        {
+          "name": "Delete Lost Item (spam)",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lost/{{lostId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "lost", "{{lostId}}"]
+            },
+            "description": "PERMANENTLY remove a spam lost report together with its photos (rows and files), match records and those matches' notifications. Admin token required. This is the one deliberate hard delete; the response lists how much was removed."
+          }
+        },
+        {
+          "name": "Delete Found Item (spam)",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/found/{{foundId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "found", "{{foundId}}"]
+            },
+            "description": "PERMANENTLY remove a spam found report together with its photos (rows and files), match records and those matches' notifications, and the claims on it. A lost report that was Matched only through a removed Confirmed match goes back to Open. Admin token required."
+          }
         }
       ]
     },
@@ -447,6 +511,19 @@
               "path": ["api", "claims"]
             },
             "description": "Submit an ownership claim as the logged-in student (student token required). The claimant is taken from the token; a studentId in the body is ignored."
+          }
+        },
+        {
+          "name": "List All Claims",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims"]
+            },
+            "description": "Admin lists every claim, newest first, with the claimant's name (StudentName) and the found item's name (FoundItemName). Admin token required."
           }
         },
         {

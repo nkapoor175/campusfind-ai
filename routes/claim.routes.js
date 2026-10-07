@@ -6,6 +6,9 @@ const { requireStudent, requireAdmin } = require('../middleware/auth');
 // POST /api/claims - File a claim for a found item (the student comes from the token)
 router.post('/', requireStudent, claimController.createClaim);
 
+// GET /api/claims - Admin lists all claims (with claimant and item names)
+router.get('/', requireAdmin, claimController.getAllClaims);
+
 // GET /api/claims/student/:studentId - List all claims filed by a student
 router.get('/student/:studentId', claimController.getClaimsByStudent);
 

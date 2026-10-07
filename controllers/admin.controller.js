@@ -89,9 +89,92 @@ async function verifyFoundItem(req, res) {
   }
 }
 
+/**
+ * PUT /api/admin/found/:id/return
+ * Mark a claimed found item as returned to its owner
+ */
+async function returnFoundItem(req, res) {
+  try {
+    const foundId = parseInt(req.params.id, 10);
+
+    if (isNaN(foundId) || foundId <= 0) {
+      return res.status(400).json({ message: 'Invalid found item ID' });
+    }
+
+    const updatedItem = await adminService.returnFoundItem(foundId);
+    return res.status(200).json({
+      message: 'Found item marked as returned',
+      item: updatedItem,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Error in returnFoundItem:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+/**
+ * DELETE /api/admin/lost/:id
+ * Permanently remove a spam lost report and its dependents
+ */
+async function deleteLostItem(req, res) {
+  try {
+    const lostId = parseInt(req.params.id, 10);
+
+    if (isNaN(lostId) || lostId <= 0) {
+      return res.status(400).json({ message: 'Invalid lost item ID' });
+    }
+
+    const removed = await adminService.deleteLostItem(lostId);
+    return res.status(200).json({
+      message: 'Lost item removed',
+      lostId,
+      removed,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Error in deleteLostItem:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+/**
+ * DELETE /api/admin/found/:id
+ * Permanently remove a spam found report and its dependents
+ */
+async function deleteFoundItem(req, res) {
+  try {
+    const foundId = parseInt(req.params.id, 10);
+
+    if (isNaN(foundId) || foundId <= 0) {
+      return res.status(400).json({ message: 'Invalid found item ID' });
+    }
+
+    const removed = await adminService.deleteFoundItem(foundId);
+    return res.status(200).json({
+      message: 'Found item removed',
+      foundId,
+      removed,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Error in deleteFoundItem:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 module.exports = {
   login,
   getPendingReports,
   verifyLostItem,
   verifyFoundItem,
+  returnFoundItem,
+  deleteLostItem,
+  deleteFoundItem,
 };

@@ -118,7 +118,7 @@ With the backend running (and ideally both Python services), run the whole flow 
 npm run smoke
 ```
 
-It registers two fresh users, logs in as the demo admin, reports a lost and a found item, has the admin verify them, checks candidate scores, waits for the automatic match, confirms it, files and approves a claim, and checks every status and notification along the way, including that the wrong role or the wrong student is refused (`401` / `403`). Each check prints `PASS` or `FAIL`; the exit code is non-zero if anything fails. By default it deletes everything it created. To leave the data in place for a demo (it prints the two test logins), run:
+It registers two fresh users, logs in as the demo admin, reports a lost and a found item, has the admin verify them, checks candidate scores, waits for the automatic match, confirms it, files and approves a claim, and checks every status and notification along the way, including that the wrong role or the wrong student is refused (`401` / `403`). It also edits a profile, lists all claims as admin, marks the item returned, and removes a spam report. Each check prints `PASS` or `FAIL`; the exit code is non-zero if anything fails. By default it deletes everything it created. To leave the data in place for a demo (it prints the two test logins), run:
 
 ```bash
 npm run smoke -- --keep
@@ -174,10 +174,10 @@ Admin passwords are stored as bcrypt hashes in `ADMIN.Password`. The demo admin 
 | Access | Endpoints |
 |---|---|
 | **Public** | `GET /health`, `POST /api/students/register`, `POST /api/students/login`, `POST /api/admin/login`, all `GET` lost/found item routes, `GET /api/matches*` (including `/candidates/:lostId`), `GET /api/claims/student/:studentId`, `GET /api/claims/found/:foundId`, `GET /api/uploads/*`, and the static `/uploads/*` photos |
-| **Student token only** | `GET /api/students/me`, `POST /api/lost-items`, `POST /api/found-items`, `POST /api/claims` |
+| **Student token only** | `GET /api/students/me`, `PUT /api/students/me`, `POST /api/lost-items`, `POST /api/found-items`, `POST /api/claims` |
 | **Any valid token** | `POST /api/matches` |
 | **Owner or admin** | `PATCH /api/matches/:id/status` (the lost item's owner), `POST /api/uploads/lost/:lostId` and `POST /api/uploads/found/:foundId` (the student who reported that item), `GET /api/notifications/student/:studentId` and `PUT /api/notifications/:id/read` (the notification's own student) |
-| **Admin token only** | `GET /api/admin/pending`, `PUT /api/admin/lost/:id/verify`, `PUT /api/admin/found/:id/verify`, `PUT /api/claims/:id/status` |
+| **Admin token only** | `GET /api/admin/pending`, `PUT /api/admin/lost/:id/verify`, `PUT /api/admin/found/:id/verify`, `PUT /api/admin/found/:id/return`, `DELETE /api/admin/lost/:id`, `DELETE /api/admin/found/:id`, `GET /api/claims`, `PUT /api/claims/:id/status` |
 
 Responses: no or invalid token is `401`; a valid token of the wrong role, or someone else's record, is `403`.
 
@@ -215,13 +215,15 @@ Item and match statuses change automatically as a report moves through the syste
 | | `Closed` | A claim on its Confirmed found item is **Approved**. |
 | Found item | `Open` | Default when reported. Only `Open` found items without a Confirmed match can get new matches. |
 | | `Claimed` | A claim on it is **Approved**. |
-| | `Returned` | Exists in the schema, but no endpoint sets it yet. |
+| | `Returned` | An admin marks a `Claimed` item as handed back (`PUT /api/admin/found/:id/return`). The lost report it was confirmed against is `Closed`. |
 | Match | `Pending` | Created automatically or with `POST /api/matches`. |
 | | `Confirmed` / `Rejected` | Set with `PATCH /api/matches/:id/status`. |
 | Claim | `Pending` | Filed with `POST /api/claims`. |
 | | `Approved` / `Rejected` | Set with `PUT /api/claims/:id/status`. Approving is refused with `409` if the found item is already `Claimed` or `Returned`. |
 
 Rules that return `409 Conflict`: creating a match for an item that is not `Open`, for a found item that already has a Confirmed match, or for a pair that already exists; confirming a match whose items are no longer open or whose found item already has another Confirmed match; approving a claim on an already claimed or returned item.
+
+**Spam removal is the one deliberate hard delete.** Everything else keeps its history through the statuses above, but an admin can permanently remove a spam report with `DELETE /api/admin/lost/:id` or `DELETE /api/admin/found/:id`. It runs in a transaction (all or nothing), deletes the dependents first (photo rows, match records, those matches' notifications and, for a found item, its claims), removes the photo files from `uploads/` after the commit, and returns the counts. Notifications about a claim's outcome are not tied to the item by a foreign key and are left in place.
 
 Notifications are created for these events (a failed notification never undoes the action that triggered it):
 
@@ -233,7 +235,7 @@ Notifications are created for these events (a failed notification never undoes t
 
 ## API Reference
 
-The project API includes 35 requests across the following modules. In the `Auth` column, "Student", "Admin" and "Owner or admin" are explained under [Authentication](#authentication).
+The project API includes 40 requests across the following modules. In the `Auth` column, "Student", "Admin" and "Owner or admin" are explained under [Authentication](#authentication).
 
 ### Health
 
@@ -248,6 +250,7 @@ The project API includes 35 requests across the following modules. In the `Auth`
 | POST | `/api/students/register` | none | Register a new student account (bcrypt-hashed password) |
 | POST | `/api/students/login` | none | Authenticate student and receive a JWT |
 | GET | `/api/students/me` | Student | Get authenticated student profile from decoded token |
+| PUT | `/api/students/me` | Student | Edit own profile. Only `name`, `phone`, `department`, `year` (1 to 10) and `hostel` can change (send any subset; `null` or `""` clears an optional field). `email`, `password` and `StudentID` are never changeable here and are ignored. Invalid values return `400` |
 
 ### Lost Item
 
@@ -285,11 +288,15 @@ The project API includes 35 requests across the following modules. In the `Auth`
 | GET | `/api/admin/pending` | Admin | List pending lost and found items awaiting verification |
 | PUT | `/api/admin/lost/:id/verify` | Admin | Verify a lost item report (the admin comes from the token) |
 | PUT | `/api/admin/found/:id/verify` | Admin | Verify a found item report (the admin comes from the token) |
+| PUT | `/api/admin/found/:id/return` | Admin | Mark a `Claimed` found item as `Returned` and close the lost report it was confirmed against. `409` unless the item is `Claimed` |
+| DELETE | `/api/admin/lost/:id` | Admin | **Permanently** remove a spam lost report with its photos (rows and files), match records and those matches' notifications. Returns counts of what was removed |
+| DELETE | `/api/admin/found/:id` | Admin | **Permanently** remove a spam found report with its photos, match records and their notifications, and the claims on it. A lost report that was `Matched` only through a removed Confirmed match goes back to `Open` |
 
 ### Claim
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
+| GET | `/api/claims` | Admin | List all claims, newest first, each with the claimant's `StudentName` and the item's `FoundItemName` |
 | POST | `/api/claims` | Student | Submit an ownership claim for a found item (body: `foundId`; the claimant comes from the token) |
 | GET | `/api/claims/student/:studentId` | none | List all claims submitted by a student |
 | GET | `/api/claims/found/:foundId` | none | List all claims associated with a found item |
@@ -343,7 +350,7 @@ The schema defines 9 tables:
 
 ### Postman Collection
 
-The Postman collection is located at `postman/CampusFind_AI_Assigned_Modules.postman_collection.json` and contains 35 requests covering all endpoints. Request descriptions in the Match and Claim folders explain the status changes and `409` rules described above.
+The Postman collection is located at `postman/CampusFind_AI_Assigned_Modules.postman_collection.json` and contains 40 requests covering all endpoints. Request descriptions in the Match and Claim folders explain the status changes and `409` rules described above.
 
 Instructions:
 1. Start the Node backend (`npm start`).

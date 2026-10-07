@@ -128,6 +128,16 @@ async function main() {
     check('login with a wrong password returns 401', wrong.status === 401);
     if (!people.owner.token || !people.finder.token) return;
 
+    // 2b. edit own profile (only name/phone/department/year/hostel; email and password are ignored)
+    const renamed = `Smoke Owner ${runId}`;
+    const edit = await call('PUT', '/api/students/me',
+        { name: renamed, hostel: 'Smoke Hostel 2', email: 'ignored@example.com', password: 'ignored' }, people.owner.token);
+    check('edit own profile (email and password in the body are ignored)',
+        edit.status === 200 && edit.data.Name === renamed && edit.data.Hostel === 'Smoke Hostel 2'
+        && edit.data.Email === people.owner.email && !('Password' in edit.data));
+    check('editing the profile with an invalid year returns 400',
+        (await call('PUT', '/api/students/me', { year: 99 }, people.owner.token)).status === 400);
+
     // 3. admin login
     const adminLogin = await call('POST', '/api/admin/login', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
     check(`admin login (${ADMIN_EMAIL})`, adminLogin.status === 200 && !!adminLogin.data.token,
@@ -223,6 +233,45 @@ async function main() {
         ownerNotesAfter.status === 200 && ownerNotesAfter.data.some((n) => n.MatchID === null && /was approved/.test(n.Message)));
     const approveAgain = await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved' }, adminToken);
     check('approving the same item twice returns 409', approveAgain.status === 409);
+
+    // 10. admin: list all claims, then mark the claimed item as returned
+    check('listing all claims without a token returns 401', (await call('GET', '/api/claims')).status === 401);
+    check('listing all claims with a student token returns 403', (await call('GET', '/api/claims', null, people.owner.token)).status === 403);
+    const allClaims = await call('GET', '/api/claims', null, adminToken);
+    const listed = allClaims.status === 200 && allClaims.data.find((x) => x.ClaimID === claimId);
+    check('admin lists all claims with the student and item names',
+        !!listed && listed.StudentName === renamed && listed.FoundItemName === found.ItemName,
+        listed ? `${listed.StudentName} / ${listed.FoundItemName}` : '');
+    check('a student cannot mark an item returned (403)',
+        (await call('PUT', `/api/admin/found/${found.FoundID}/return`, null, people.owner.token)).status === 403);
+    const returned = await call('PUT', `/api/admin/found/${found.FoundID}/return`, null, adminToken);
+    check('admin marks the claimed found item Returned', returned.status === 200 && returned.data.item.Status === 'Returned');
+    check('marking it Returned twice returns 409',
+        (await call('PUT', `/api/admin/found/${found.FoundID}/return`, null, adminToken)).status === 409);
+
+    // 11. admin removes spam reports (the one deliberate hard delete)
+    const spamLost = await call('POST', '/api/lost-items',
+        { itemName: `Smoke ${runId} spam lost`, category: 'Misc', description: 'zzzalpha' }, people.owner.token);
+    const spamFound = await call('POST', '/api/found-items',
+        { itemName: `Smoke ${runId} spam found`, category: 'Other', description: 'qqqbeta' }, people.finder.token);
+    if (spamLost.status === 201) created.lostIds.push(spamLost.data.LostID);
+    if (spamFound.status === 201) created.foundIds.push(spamFound.data.FoundID);
+    if (spamLost.status === 201 && spamFound.status === 201) {
+        const spamLostId = spamLost.data.LostID;
+        const spamFoundId = spamFound.data.FoundID;
+        check('a student cannot delete a report (403)',
+            (await call('DELETE', `/api/admin/lost/${spamLostId}`, null, people.owner.token)).status === 403);
+        check('deleting a report without a token returns 401', (await call('DELETE', `/api/admin/found/${spamFoundId}`)).status === 401);
+        const delLost = await call('DELETE', `/api/admin/lost/${spamLostId}`, null, adminToken);
+        check('admin removes the spam lost report', delLost.status === 200 && delLost.data.removed.matches === 0);
+        const delFound = await call('DELETE', `/api/admin/found/${spamFoundId}`, null, adminToken);
+        check('admin removes the spam found report', delFound.status === 200 && delFound.data.removed.claims === 0);
+        check('removed reports are gone (404)',
+            (await call('GET', `/api/lost-items/${spamLostId}`)).status === 404
+            && (await call('GET', `/api/found-items/${spamFoundId}`)).status === 404);
+    } else {
+        check('create the spam reports for the removal check', false, `lost ${spamLost.status}, found ${spamFound.status}`);
+    }
 
     if (KEEP) {
         console.log('\n--keep: data left in place for your demo.');

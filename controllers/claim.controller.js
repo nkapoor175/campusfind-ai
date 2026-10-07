@@ -112,9 +112,24 @@ async function updateClaimStatus(req, res) {
   }
 }
 
+/**
+ * GET /api/claims
+ * Admin lists all claims with the claimant's and item's names
+ */
+async function getAllClaims(req, res) {
+  try {
+    const claims = await claimService.getAllClaims();
+    return res.status(200).json(claims);
+  } catch (error) {
+    console.error('Error in getAllClaims:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 module.exports = {
   createClaim,
   getClaimsByStudent,
   getClaimsByFoundItem,
+  getAllClaims,
   updateClaimStatus,
 };

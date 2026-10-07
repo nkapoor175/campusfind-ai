@@ -90,4 +90,80 @@ router.get('/me', requireStudent, async (req, res) => {
     }
 });
 
+// The only fields a student may change on their own profile (request key -> column).
+// Email, password and StudentID can never be changed here; anything else in the body is ignored.
+const EDITABLE_PROFILE_FIELDS = {
+    name: { column: 'Name', maxLength: 100, required: true },
+    phone: { column: 'Phone', maxLength: 20 },
+    department: { column: 'Department', maxLength: 100 },
+    year: { column: 'Year', integer: true },
+    hostel: { column: 'Hostel', maxLength: 100 }
+};
+
+// Returns the value to store (null clears an optional field), or throws a message for a 400.
+function cleanProfileValue(key, value) {
+    const rule = EDITABLE_PROFILE_FIELDS[key];
+
+    if (value === null || value === '') {
+        if (rule.required) throw new Error(`${key} cannot be empty`);
+        return null;
+    }
+
+    if (rule.integer) {
+        const number = Number(value);
+        if (!Number.isInteger(number) || number < 1 || number > 10) {
+            throw new Error(`${key} must be a whole number from 1 to 10`);
+        }
+        return number;
+    }
+
+    if (typeof value !== 'string') throw new Error(`${key} must be text`);
+    const text = value.trim();
+    if (!text) {
+        if (rule.required) throw new Error(`${key} cannot be empty`);
+        return null;
+    }
+    if (text.length > rule.maxLength) throw new Error(`${key} must be at most ${rule.maxLength} characters`);
+    return text;
+}
+
+// PUT /api/students/me - edit own profile (student token)
+router.put('/me', requireStudent, async (req, res) => {
+    const body = req.body || {};
+    const assignments = [];
+    const values = [];
+
+    try {
+        for (const key of Object.keys(EDITABLE_PROFILE_FIELDS)) {
+            if (Object.prototype.hasOwnProperty.call(body, key)) {
+                values.push(cleanProfileValue(key, body[key]));
+                assignments.push(`${EDITABLE_PROFILE_FIELDS[key].column} = ?`);
+            }
+        }
+    } catch (validationError) {
+        return res.status(400).json({ error: validationError.message });
+    }
+
+    if (assignments.length === 0) {
+        return res.status(400).json({ error: `Provide at least one of: ${Object.keys(EDITABLE_PROFILE_FIELDS).join(', ')}` });
+    }
+
+    try {
+        // Column names come from the fixed EDITABLE_PROFILE_FIELDS map above; values are parameters.
+        const [result] = await pool.query(
+            `UPDATE STUDENT SET ${assignments.join(', ')} WHERE StudentID = ?`,
+            [...values, req.user.studentId]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+
+        const [rows] = await pool.query('SELECT * FROM STUDENT WHERE StudentID = ?', [req.user.studentId]);
+        return res.status(200).json(toPublicStudent(rows[0]));
+    } catch (err) {
+        console.error('Update profile error:', err);
+        return res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
 module.exports = router;

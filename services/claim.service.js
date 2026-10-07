@@ -211,9 +211,26 @@ async function updateClaimStatus(claimId, adminId, claimStatus, verificationNote
   return updatedClaim;
 }
 
+/**
+ * List every claim (newest first) with the claimant's name and the found item's name,
+ * so an admin can review them in one place
+ */
+async function getAllClaims() {
+  const [claims] = await pool.execute(
+    `SELECT c.*, s.Name AS StudentName, f.ItemName AS FoundItemName
+     FROM CLAIM c
+     JOIN STUDENT s ON s.StudentID = c.StudentID
+     JOIN FOUND_ITEM f ON f.FoundID = c.FoundID
+     ORDER BY c.ClaimDate DESC, c.ClaimID DESC`
+  );
+
+  return claims;
+}
+
 module.exports = {
   createClaim,
   getClaimsByStudent,
   getClaimsByFoundItem,
+  getAllClaims,
   updateClaimStatus,
 };

@@ -17,7 +17,7 @@ import {
 import Button from '../common/Button';
 
 export default function Navbar({ currentRoute, onNavigate }) {
-  const { user, role, unreadCount, logout, switchRole } = useAuth();
+  const { user, role, unreadCount, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
@@ -82,12 +82,11 @@ export default function Navbar({ currentRoute, onNavigate }) {
 
         {/* Right Action Controls */}
         <div className="navbar-actions">
-          {/* Quick Role Switcher (Crucial for Professor / Evaluator Demo) */}
-          <button
-            type="button"
-            onClick={() => switchRole(role === 'admin' ? 'student' : 'admin')}
+          {/* Shows who is signed in (the role comes from a real login, so it cannot be toggled) */}
+          <span
             className={`role-toggle-pill ${role === 'admin' ? 'is-admin' : ''}`}
-            title="Click to toggle between Student and Admin perspective"
+            title={role === 'admin' ? 'Signed in as Security Admin' : 'Signed in as a student'}
+            style={{ cursor: 'default' }}
           >
             {role === 'admin' ? (
               <>
@@ -98,7 +97,7 @@ export default function Navbar({ currentRoute, onNavigate }) {
                 <User size={14} /> Student View
               </>
             )}
-          </button>
+          </span>
 
           {/* Notifications Bell */}
           <button

@@ -20,11 +20,9 @@ import LoadingState from '../components/common/LoadingState';
 import { getCategoryIllustration } from '../assets/illustrations/IllustratedIcons';
 import { getItemImageUrl } from '../utils/imageUrl';
 import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
-  const { user } = useAuth();
   const toast = useToast();
 
   const [pendingReports, setPendingReports] = useState({ pendingLost: [], pendingFound: [] });
@@ -60,7 +58,7 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
 
   const handleVerifyLost = async (lostId) => {
     try {
-      await api.verifyLostItem(lostId, user?.AdminID || 1);
+      await api.verifyLostItem(lostId);
       toast.success(`Lost item #${lostId} verified by admin!`);
       loadAdminData();
     } catch {
@@ -70,7 +68,7 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
 
   const handleVerifyFound = async (foundId) => {
     try {
-      await api.verifyFoundItem(foundId, user?.AdminID || 1);
+      await api.verifyFoundItem(foundId);
       toast.success(`Found item #${foundId} verified by admin!`);
       loadAdminData();
     } catch {
@@ -80,7 +78,7 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
 
   const handleApproveClaim = async (claimId) => {
     try {
-      await api.updateClaimStatus(claimId, user?.AdminID || 1, 'Approved', 'Verified student college ID at security post');
+      await api.updateClaimStatus(claimId, 'Approved', 'Verified student college ID at security post');
       toast.success(`Claim #${claimId} approved!`);
       loadAdminData();
     } catch {
@@ -90,7 +88,7 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
 
   const handleRejectClaim = async (claimId) => {
     try {
-      await api.updateClaimStatus(claimId, user?.AdminID || 1, 'Rejected', 'Insufficient proof of ownership');
+      await api.updateClaimStatus(claimId, 'Rejected', 'Insufficient proof of ownership');
       toast.info(`Claim #${claimId} rejected`);
       loadAdminData();
     } catch {

@@ -8,7 +8,7 @@
 --           admin     admin@campus.edu                      -> password  Admin@12345
 --
 -- The data tells a few small stories so every screen has something to show:
---   Pending matches ........ lost bottle <-> found bottle, lost earphones <-> found earphones, lost backpack <-> found laptop bag
+--   Pending matches ........ lost bottle <-> found bottle, lost earphones <-> found earphones, lost backpack <-> found backpack
 --   Confirmed + claim open . lost keys <-> found keys (Rohan has a Pending claim for the admin to decide)
 --   Completed story ........ lost wallet <-> found wallet: claim approved, wallet Returned, lost report Closed
 --   Rejected match ......... lost calculator <-> found calculator
@@ -50,12 +50,12 @@ INSERT INTO LOST_ITEM_IMAGE (LostID, ImageURL) VALUES
 
 -- FOUND_ITEM (ItemName, Category, Brand, Color, Description, DateFound, FoundLocation, Status, StudentID, AdminID)
 INSERT INTO FOUND_ITEM (ItemName, Category, Brand, Color, Description, DateFound, FoundLocation, Status, StudentID, AdminID) VALUES
-('Steel Bottle', 'Accessories', 'Milton', 'Blue', 'Found a blue steel bottle near the reading hall entrance', '2026-10-02', 'Library Entrance', 'Open', 3, 1),
-('Earphones', 'Electronics', 'boAt', 'Black', 'Picked up black wired earphones near the canteen tables', '2026-10-02', 'Canteen', 'Open', 3, 1),
+('Steel Bottle', 'Accessories', 'Milton', 'Blue', 'Blue steel water bottle with a dented cap and a college sticker, found near the reading hall entrance', '2026-10-02', 'Library Entrance', 'Open', 3, 1),
+('Earphones', 'Electronics', 'boAt', 'Black', 'Black wired earphones in a small pouch, picked up near the canteen tables', '2026-10-02', 'Canteen', 'Open', 3, 1),
 ('Brown Wallet', 'Accessories', 'Fastrack', 'Brown', 'Brown leather wallet with an ID card inside, found on a canteen table', '2026-09-29', 'Canteen', 'Returned', 6, 1),
 ('Keys with Red Tag', 'Accessories', 'Yale', 'Silver', 'Three silver keys on a ring with a red tag', '2026-10-05', 'Sports Complex Gate', 'Open', 4, 1),
-('Basic Calculator', 'Electronics', 'Citizen', 'Black', 'Black basic calculator left on a desk in the exam hall', '2026-10-03', 'Exam Hall', 'Open', 6, NULL),
-('Black Laptop Bag', 'Bags', 'Dell', 'Black', 'Black laptop bag with a Dell logo, found in the auditorium', '2026-10-04', 'Auditorium', 'Open', 5, 1);
+('Casio Scientific Calculator', 'Electronics', 'Casio', 'Grey', 'Grey Casio fx-991EX scientific calculator with a name written on the back, left on a desk in the exam hall', '2026-10-03', 'Exam Hall', 'Open', 6, NULL),
+('Black Wildcraft Backpack', 'Bags', 'Wildcraft', 'Black', 'Black backpack with a laptop sleeve and a football keychain, found in the auditorium', '2026-10-04', 'Auditorium', 'Open', 5, 1);
 
 INSERT INTO FOUND_ITEM_IMAGE (FoundID, ImageURL) VALUES
 (1, '/uploads/found/demo-found-1.png'),
@@ -80,18 +80,18 @@ INSERT INTO CLAIM (ClaimDate, ClaimStatus, VerificationNotes, StudentID, FoundID
 
 -- NOTIFICATION (Message, Date, ReadStatus, StudentID, MatchID). Wording matches what the app generates.
 INSERT INTO NOTIFICATION (Message, Date, ReadStatus, StudentID, MatchID) VALUES
-('Possible match for your lost "Water Bottle": a found item "Steel Bottle" looks similar (92%). Open Matches to review.', NOW() - INTERVAL 2 DAY, FALSE, 1, 1),
-('The item you found ("Steel Bottle") may belong to someone who lost "Water Bottle" (92%).', NOW() - INTERVAL 2 DAY, FALSE, 3, 1),
-('Possible match for your lost "Wired Earphones": a found item "Earphones" looks similar (88%). Open Matches to review.', NOW() - INTERVAL 2 DAY, FALSE, 2, 2),
-('The item you found ("Earphones") may belong to someone who lost "Wired Earphones" (88%).', NOW() - INTERVAL 2 DAY, TRUE, 3, 2),
+('Possible match for your lost "Water Bottle": a found item "Steel Bottle" looks similar (73%). Open Matches to review.', NOW() - INTERVAL 2 DAY, FALSE, 1, 1),
+('The item you found ("Steel Bottle") may belong to someone who lost "Water Bottle" (73%).', NOW() - INTERVAL 2 DAY, FALSE, 3, 1),
+('Possible match for your lost "Wired Earphones": a found item "Earphones" looks similar (81%). Open Matches to review.', NOW() - INTERVAL 2 DAY, FALSE, 2, 2),
+('The item you found ("Earphones") may belong to someone who lost "Wired Earphones" (81%).', NOW() - INTERVAL 2 DAY, TRUE, 3, 2),
 ('Your lost item "Brown Leather Wallet" has a confirmed match. Check your matches.', NOW() - INTERVAL 6 DAY, TRUE, 5, 3),
 ('A lost-item report matching the item you found ("Brown Wallet") was confirmed. The owner may file a claim.', NOW() - INTERVAL 6 DAY, TRUE, 6, 3),
 ('Your lost item "Hostel Room Keys" has a confirmed match. Check your matches.', NOW() - INTERVAL 1 DAY, FALSE, 3, 4),
 ('A lost-item report matching the item you found ("Keys with Red Tag") was confirmed. The owner may file a claim.', NOW() - INTERVAL 1 DAY, FALSE, 4, 4),
-('Possible match for your lost "Black Backpack": a found item "Black Laptop Bag" looks similar (74%). Open Matches to review.', NOW() - INTERVAL 1 DAY, FALSE, 4, 5),
-('The item you found ("Black Laptop Bag") may belong to someone who lost "Black Backpack" (74%).', NOW() - INTERVAL 1 DAY, FALSE, 5, 5),
-('Possible match for your lost "Scientific Calculator": a found item "Basic Calculator" looks similar (71%). Open Matches to review.', NOW() - INTERVAL 2 DAY, TRUE, 1, 6),
-('The item you found ("Basic Calculator") may belong to someone who lost "Scientific Calculator" (71%).', NOW() - INTERVAL 2 DAY, TRUE, 6, 6);
+('Possible match for your lost "Black Backpack": a found item "Black Wildcraft Backpack" looks similar (73%). Open Matches to review.', NOW() - INTERVAL 1 DAY, FALSE, 4, 5),
+('The item you found ("Black Wildcraft Backpack") may belong to someone who lost "Black Backpack" (73%).', NOW() - INTERVAL 1 DAY, FALSE, 5, 5),
+('Possible match for your lost "Scientific Calculator": a found item "Casio Scientific Calculator" looks similar (80%). Open Matches to review.', NOW() - INTERVAL 2 DAY, TRUE, 1, 6),
+('The item you found ("Casio Scientific Calculator") may belong to someone who lost "Scientific Calculator" (80%).', NOW() - INTERVAL 2 DAY, TRUE, 6, 6);
 
 INSERT INTO NOTIFICATION (Message, Date, ReadStatus, StudentID, MatchID) VALUES
 ('Your claim on "Brown Wallet" was rejected.', NOW() - INTERVAL 5 DAY, TRUE, 2, NULL),

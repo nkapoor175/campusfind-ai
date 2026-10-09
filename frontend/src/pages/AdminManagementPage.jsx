@@ -22,6 +22,15 @@ import { getCategoryIllustration } from '../assets/illustrations/IllustratedIcon
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
+// The server sends dates as ISO timestamps; show them as "9 Oct 2026".
+function formatDate(value) {
+  if (!value) return 'Recent';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function AdminManagementPage({ onSelectItem }) {
   const toast = useToast();
 
@@ -271,7 +280,7 @@ export default function AdminManagementPage({ onSelectItem }) {
                             </span>
                           </td>
                           <td className="table-loc-text">{item.LostLocation || 'Campus'}</td>
-                          <td className="table-date-text">{item.DateLost || 'Recent'}</td>
+                          <td className="table-date-text">{formatDate(item.DateLost)}</td>
                           <td>
                             <StatusBadge status={item.Status} />
                           </td>
@@ -353,7 +362,7 @@ export default function AdminManagementPage({ onSelectItem }) {
                             </span>
                           </td>
                           <td className="table-loc-text">{item.FoundLocation || 'Campus'}</td>
-                          <td className="table-date-text">{item.DateFound || 'Recent'}</td>
+                          <td className="table-date-text">{formatDate(item.DateFound)}</td>
                           <td>
                             <StatusBadge status={item.Status} />
                           </td>
@@ -425,7 +434,7 @@ export default function AdminManagementPage({ onSelectItem }) {
                           <td>
                             <span className="table-item-name">{claim.foundItem?.ItemName || `Found #${claim.FoundID}`}</span>
                           </td>
-                          <td className="table-date-text">{claim.ClaimDate?.split(' ')[0] || 'Recent'}</td>
+                          <td className="table-date-text">{formatDate(claim.ClaimDate)}</td>
                           <td>
                             <StatusBadge status={claim.ClaimStatus} />
                           </td>
@@ -500,7 +509,7 @@ export default function AdminManagementPage({ onSelectItem }) {
                           <td>
                             <StatusBadge status={m.MatchStatus} />
                           </td>
-                          <td className="table-date-text">{m.MatchDate?.split(' ')[0] || 'Recent'}</td>
+                          <td className="table-date-text">{formatDate(m.MatchDate)}</td>
                           <td style={{ textAlign: 'right' }}>
                             <div className="table-action-btns">
                               {m.MatchStatus !== 'Confirmed' && (

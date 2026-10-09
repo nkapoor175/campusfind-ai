@@ -42,7 +42,7 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
 
   const handleUpdateClaimStatus = async (claimId, newStatus, notes) => {
     try {
-      await api.updateClaimStatus(claimId, 1, newStatus, notes);
+      await api.updateClaimStatus(claimId, newStatus, notes);
       toast.success(`Claim #${claimId} marked as ${newStatus}`);
       loadClaims();
     } catch {

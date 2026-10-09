@@ -122,7 +122,7 @@ export default function ItemDetailModal({
     }
     setClaimLoading(true);
     try {
-      await api.createClaim(user.StudentID || 2, item.FoundID);
+      await api.createClaim(item.FoundID);
       setClaimSuccess(true);
       toast.success('Ownership claim submitted to campus security!');
       if (onClaimSubmitted) onClaimSubmitted();
@@ -141,7 +141,7 @@ export default function ItemDetailModal({
     }
     setMatchedClaimLoading(true);
     try {
-      await api.createClaim(user.StudentID || 2, foundId);
+      await api.createClaim(foundId);
       setMatchedClaimSuccess(true);
       toast.success('Ownership claim submitted to campus security for matched item!');
       if (onClaimSubmitted) onClaimSubmitted();

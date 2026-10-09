@@ -79,7 +79,7 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
 
   const handleClaimMatch = async (match) => {
     try {
-      await api.createClaim(studentId, match.FoundID);
+      await api.createClaim(match.FoundID);
       toast.success('Ownership claim filed with Campus Security!');
       onNavigate('claims');
     } catch (err) {

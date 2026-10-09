@@ -42,6 +42,9 @@ export default function LoginPage({ onNavigate }) {
     login(demoEmail, demoPass).then((res) => {
       toast.success(`Logged in as ${demoEmail.includes('admin') ? 'Security Admin' : 'Student'}`);
       onNavigate(demoEmail.includes('admin') ? 'admin-dashboard' : 'dashboard');
+    }).catch((err) => {
+      setError(err.message || 'Login failed. Is the backend running?');
+      toast.error('Login failed');
     });
   };
 
@@ -63,14 +66,14 @@ export default function LoginPage({ onNavigate }) {
               <button
                 type="button"
                 className="demo-btn student"
-                onClick={() => handleQuickLogin('parthvi@campus.edu', 'password123')}
+                onClick={() => handleQuickLogin('parthvi@campus.edu', 'Demo@12345')}
               >
                 <UserCheck size={14} /> Parthvi (Student)
               </button>
               <button
                 type="button"
                 className="demo-btn admin"
-                onClick={() => handleQuickLogin('admin@campus.edu', 'admin123')}
+                onClick={() => handleQuickLogin('admin@campus.edu', 'Admin@12345')}
               >
                 <Shield size={14} /> Security Admin
               </button>

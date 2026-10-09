@@ -20,11 +20,9 @@ import LoadingState from '../components/common/LoadingState';
 import EmptyState from '../components/common/EmptyState';
 import { getCategoryIllustration } from '../assets/illustrations/IllustratedIcons';
 import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 export default function AdminManagementPage({ onSelectItem }) {
-  const { user } = useAuth();
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState('lost'); // 'lost' | 'found' | 'claims' | 'matches'
@@ -63,7 +61,7 @@ export default function AdminManagementPage({ onSelectItem }) {
 
   const handleVerifyLost = async (lostId) => {
     try {
-      await api.verifyLostItem(lostId, user?.AdminID || 1);
+      await api.verifyLostItem(lostId);
       toast.success(`Lost Item #${lostId} successfully verified!`);
       loadAllData();
     } catch {
@@ -73,7 +71,7 @@ export default function AdminManagementPage({ onSelectItem }) {
 
   const handleVerifyFound = async (foundId) => {
     try {
-      await api.verifyFoundItem(foundId, user?.AdminID || 1);
+      await api.verifyFoundItem(foundId);
       toast.success(`Found Item #${foundId} successfully verified!`);
       loadAllData();
     } catch {
@@ -85,7 +83,6 @@ export default function AdminManagementPage({ onSelectItem }) {
     try {
       await api.updateClaimStatus(
         claimId,
-        user?.AdminID || 1,
         newStatus,
         newStatus === 'Approved'
           ? 'Physical College ID & details verified at security desk.'

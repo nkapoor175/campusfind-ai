@@ -142,7 +142,7 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
           />
           <DashboardStat
             label="Active Claims"
-            value={myClaims.length}
+            value={myClaims.filter((claim) => claim.ClaimStatus === 'Pending').length}
             subtext="under review"
             color="peach"
             icon={FileCheck2}

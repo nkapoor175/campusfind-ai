@@ -351,11 +351,11 @@ This **erases the whole local `campusfind_ai` database** and loads the demo data
 
 | Story | Records | Where it shows up |
 |---|---|---|
-| Matches waiting for review | Water Bottle with Steel Bottle, Wired Earphones with Earphones, Black Backpack with Black Laptop Bag | Matches and notifications with a similarity percentage. The bottle pair uses the same photo on both sides, so its image score is 1.0 |
+| Matches waiting for review | Water Bottle with Steel Bottle, Wired Earphones with Earphones, Black Backpack with Black Wildcraft Backpack | Matches and notifications with a similarity percentage. The bottle pair uses the same photo on both sides, so its image score is 1.0 |
 | A confirmed match with a claim waiting | Hostel Room Keys with Keys with Red Tag, and Rohan's Pending claim | Log in as the admin and approve the claim: the found item becomes `Claimed` and the lost report `Closed` |
 | A finished story | Brown Leather Wallet with Brown Wallet: Parthvi's claim rejected, Ishita's approved, wallet `Returned`, lost report `Closed` | Claim history and the full status lifecycle |
-| A rejected match | Scientific Calculator with Basic Calculator | Shows the `Rejected` status |
-| Waiting for the admin | Lost: Backpack, Umbrella, Calculator. Found: Basic Calculator | The admin's pending-verification list |
+| A rejected match | Scientific Calculator with Casio Scientific Calculator | Shows the `Rejected` status |
+| Waiting for the admin | Lost: Backpack, Umbrella, Calculator. Found: Casio Scientific Calculator | The admin's pending-verification list |
 
 ### Live demo script (about 7 minutes)
 

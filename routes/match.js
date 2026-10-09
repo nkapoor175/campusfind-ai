@@ -24,7 +24,9 @@ router.get('/candidates/:lostId', async (req, res) => {
 
         // Only open found items that don't already have a confirmed match
         const [foundItems] = await pool.query(
-            `SELECT f.* FROM FOUND_ITEM f
+            `SELECT f.*,
+                    (SELECT i.ImageURL FROM FOUND_ITEM_IMAGE i WHERE i.FoundID = f.FoundID ORDER BY i.ImageURL LIMIT 1) AS ImageURL
+             FROM FOUND_ITEM f
              WHERE f.Status = 'Open'
                AND NOT EXISTS (
                    SELECT 1 FROM MATCH_RECORD m

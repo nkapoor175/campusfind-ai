@@ -5,6 +5,12 @@ const { runAutoMatchForLostItem } = require('../services/autoMatchService');
 
 const router = express.Router();
 
+// Every lost-item response also carries ImageURL: the item's first uploaded photo (null if it has none).
+// "First" uses the same ordering as the matching code, so the photo shown is the photo that is compared.
+const SELECT_ITEM = `SELECT l.*,
+    (SELECT i.ImageURL FROM LOST_ITEM_IMAGE i WHERE i.LostID = l.LostID ORDER BY i.ImageURL LIMIT 1) AS ImageURL
+    FROM LOST_ITEM l`;
+
 // POST /api/lost-items - create (authed)
 router.post('/', requireStudent, async (req, res) => {
     const { itemName, category, brand, color, description, dateLost, lostLocation } = req.body;
@@ -20,7 +26,7 @@ router.post('/', requireStudent, async (req, res) => {
             [itemName, category || null, brand || null, color || null, description || null, dateLost || null, lostLocation || null, req.user.studentId]
         );
 
-        const [rows] = await pool.query('SELECT * FROM LOST_ITEM WHERE LostID = ?', [result.insertId]);
+        const [rows] = await pool.query(`${SELECT_ITEM} WHERE l.LostID = ?`, [result.insertId]);
         res.status(201).json(rows[0]);
 
         // Look for matching found items in the background; the response above never waits on it.
@@ -35,7 +41,7 @@ router.post('/', requireStudent, async (req, res) => {
 // GET /api/lost-items - list all
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM LOST_ITEM ORDER BY LostID DESC');
+        const [rows] = await pool.query(`${SELECT_ITEM} ORDER BY l.LostID DESC`);
         return res.status(200).json(rows);
     } catch (err) {
         console.error('List lost items error:', err);
@@ -46,7 +52,7 @@ router.get('/', async (req, res) => {
 // GET /api/lost-items/student/:studentId - list by student
 router.get('/student/:studentId', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM LOST_ITEM WHERE StudentID = ? ORDER BY LostID DESC', [req.params.studentId]);
+        const [rows] = await pool.query(`${SELECT_ITEM} WHERE l.StudentID = ? ORDER BY l.LostID DESC`, [req.params.studentId]);
         return res.status(200).json(rows);
     } catch (err) {
         console.error('List lost items by student error:', err);
@@ -57,7 +63,7 @@ router.get('/student/:studentId', async (req, res) => {
 // GET /api/lost-items/:id - get by id
 router.get('/:id', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM LOST_ITEM WHERE LostID = ?', [req.params.id]);
+        const [rows] = await pool.query(`${SELECT_ITEM} WHERE l.LostID = ?`, [req.params.id]);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Lost item not found' });
         }

@@ -5,6 +5,12 @@ const { runAutoMatchForFoundItem } = require('../services/autoMatchService');
 
 const router = express.Router();
 
+// Every found-item response also carries ImageURL: the item's first uploaded photo (null if it has none).
+// "First" uses the same ordering as the matching code, so the photo shown is the photo that is compared.
+const SELECT_ITEM = `SELECT f.*,
+    (SELECT i.ImageURL FROM FOUND_ITEM_IMAGE i WHERE i.FoundID = f.FoundID ORDER BY i.ImageURL LIMIT 1) AS ImageURL
+    FROM FOUND_ITEM f`;
+
 // POST /api/found-items - create (authed)
 router.post('/', requireStudent, async (req, res) => {
     const { itemName, category, brand, color, description, dateFound, foundLocation } = req.body;
@@ -20,7 +26,7 @@ router.post('/', requireStudent, async (req, res) => {
             [itemName, category || null, brand || null, color || null, description || null, dateFound || null, foundLocation || null, req.user.studentId]
         );
 
-        const [rows] = await pool.query('SELECT * FROM FOUND_ITEM WHERE FoundID = ?', [result.insertId]);
+        const [rows] = await pool.query(`${SELECT_ITEM} WHERE f.FoundID = ?`, [result.insertId]);
         res.status(201).json(rows[0]);
 
         // Look for matching lost items in the background; the response above never waits on it.
@@ -35,7 +41,7 @@ router.post('/', requireStudent, async (req, res) => {
 // GET /api/found-items - list all
 router.get('/', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM FOUND_ITEM ORDER BY FoundID DESC');
+        const [rows] = await pool.query(`${SELECT_ITEM} ORDER BY f.FoundID DESC`);
         return res.status(200).json(rows);
     } catch (err) {
         console.error('List found items error:', err);
@@ -46,7 +52,7 @@ router.get('/', async (req, res) => {
 // GET /api/found-items/student/:studentId - list by student
 router.get('/student/:studentId', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM FOUND_ITEM WHERE StudentID = ? ORDER BY FoundID DESC', [req.params.studentId]);
+        const [rows] = await pool.query(`${SELECT_ITEM} WHERE f.StudentID = ? ORDER BY f.FoundID DESC`, [req.params.studentId]);
         return res.status(200).json(rows);
     } catch (err) {
         console.error('List found items by student error:', err);
@@ -57,7 +63,7 @@ router.get('/student/:studentId', async (req, res) => {
 // GET /api/found-items/:id - get by id
 router.get('/:id', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM FOUND_ITEM WHERE FoundID = ?', [req.params.id]);
+        const [rows] = await pool.query(`${SELECT_ITEM} WHERE f.FoundID = ?`, [req.params.id]);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Found item not found' });
         }

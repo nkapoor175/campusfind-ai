@@ -242,6 +242,8 @@ The project API includes 40 requests across the following modules. In the `Auth`
 | GET | `/api/students/me` | Student | Get authenticated student profile from decoded token |
 | PUT | `/api/students/me` | Student | Edit own profile. Only `name`, `phone`, `department`, `year` (1 to 10) and `hostel` can change (send any subset; `null` or `""` clears an optional field). `email`, `password` and `StudentID` are never changeable here and are ignored. Invalid values return `400` |
 
+> Every lost and found item response (the lists, by id, by student, and the `foundItem` inside `/api/matches/candidates/:lostId`) includes `ImageURL`: the item's first uploaded photo, or `null` if it has none. The photo is served from that path, for example `/uploads/lost/<file>`. "First" is the same photo the matching code compares, so what you see is what was scored.
+
 ### Lost Item
 
 | Method | Path | Auth | Description |

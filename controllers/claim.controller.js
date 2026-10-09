@@ -2,20 +2,18 @@ const claimService = require('../services/claim.service');
 
 /**
  * POST /api/claims
- * File a claim for a found item
+ * File a claim for a found item. The claimant is the logged-in student (from the token);
+ * a studentId in the request body is ignored.
  */
 async function createClaim(req, res) {
   try {
-    const { studentId, foundId } = req.body;
+    const { foundId } = req.body;
 
-    if (
-      studentId === undefined || studentId === null || isNaN(Number(studentId)) || Number(studentId) <= 0 ||
-      foundId === undefined || foundId === null || isNaN(Number(foundId)) || Number(foundId) <= 0
-    ) {
-      return res.status(400).json({ message: 'Invalid or missing studentId or foundId' });
+    if (foundId === undefined || foundId === null || isNaN(Number(foundId)) || Number(foundId) <= 0) {
+      return res.status(400).json({ message: 'Invalid or missing foundId' });
     }
 
-    const newClaim = await claimService.createClaim(Number(studentId), Number(foundId));
+    const newClaim = await claimService.createClaim(req.user.studentId, Number(foundId));
     return res.status(201).json({
       message: 'Claim submitted successfully',
       claim: newClaim,
@@ -31,7 +29,7 @@ async function createClaim(req, res) {
 
 /**
  * GET /api/claims/student/:studentId
- * List all claims filed by a student
+ * List all claims filed by a student (that student, or an admin)
  */
 async function getClaimsByStudent(req, res) {
   try {
@@ -39,6 +37,11 @@ async function getClaimsByStudent(req, res) {
 
     if (isNaN(studentId) || studentId <= 0) {
       return res.status(400).json({ message: 'Invalid student ID' });
+    }
+
+    // A student may only list their own claims; admins may list anyone's
+    if (req.user.role !== 'admin' && req.user.studentId !== studentId) {
+      return res.status(403).json({ message: 'You can only view your own claims' });
     }
 
     const claims = await claimService.getClaimsByStudent(studentId);
@@ -54,7 +57,7 @@ async function getClaimsByStudent(req, res) {
 
 /**
  * GET /api/claims/found/:foundId
- * List all claims associated with a found item
+ * List all claims associated with a found item (the student who reported it, or an admin)
  */
 async function getClaimsByFoundItem(req, res) {
   try {
@@ -62,6 +65,14 @@ async function getClaimsByFoundItem(req, res) {
 
     if (isNaN(foundId) || foundId <= 0) {
       return res.status(400).json({ message: 'Invalid found item ID' });
+    }
+
+    // The claimants' details are only for whoever is holding the item, and admins
+    if (req.user.role !== 'admin') {
+      const reporterId = await claimService.getFoundItemReporterId(foundId);
+      if (reporterId !== req.user.studentId) {
+        return res.status(403).json({ message: 'Only the student who reported this item can view its claims' });
+      }
     }
 
     const claims = await claimService.getClaimsByFoundItem(foundId);
@@ -77,19 +88,16 @@ async function getClaimsByFoundItem(req, res) {
 
 /**
  * PUT /api/claims/:id/status
- * Admin updates claim status (Approved / Rejected) and verification notes
+ * Admin updates claim status (Approved / Rejected) and verification notes.
+ * The deciding admin is taken from the token; an adminId in the request body is ignored.
  */
 async function updateClaimStatus(req, res) {
   try {
     const claimId = parseInt(req.params.id, 10);
-    const { adminId, claimStatus, verificationNotes } = req.body;
+    const { claimStatus, verificationNotes } = req.body;
 
     if (isNaN(claimId) || claimId <= 0) {
       return res.status(400).json({ message: 'Invalid claim ID' });
-    }
-
-    if (adminId === undefined || adminId === null || isNaN(Number(adminId)) || Number(adminId) <= 0) {
-      return res.status(400).json({ message: 'Invalid or missing adminId' });
     }
 
     const allowedStatuses = ['Approved', 'Rejected'];
@@ -99,7 +107,7 @@ async function updateClaimStatus(req, res) {
 
     const updatedClaim = await claimService.updateClaimStatus(
       claimId,
-      Number(adminId),
+      req.user.adminId,
       claimStatus,
       verificationNotes
     );
@@ -117,9 +125,24 @@ async function updateClaimStatus(req, res) {
   }
 }
 
+/**
+ * GET /api/claims
+ * Admin lists all claims with the claimant's and item's names
+ */
+async function getAllClaims(req, res) {
+  try {
+    const claims = await claimService.getAllClaims();
+    return res.status(200).json(claims);
+  } catch (error) {
+    console.error('Error in getAllClaims:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 module.exports = {
   createClaim,
   getClaimsByStudent,
   getClaimsByFoundItem,
+  getAllClaims,
   updateClaimStatus,
 };

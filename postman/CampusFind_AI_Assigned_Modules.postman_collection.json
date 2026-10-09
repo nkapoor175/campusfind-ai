@@ -7,8 +7,9 @@
   },
   "variable": [
     {"key": "baseUrl", "value": "http://localhost:5000", "type": "string"},
-    {"key": "mlUrl", "value": "http://localhost:8000", "type": "string"},
+    {"key": "mlUrl", "value": "http://localhost:8001", "type": "string"},
     {"key": "authToken", "value": "", "type": "string"},
+    {"key": "adminToken", "value": "", "type": "string"},
     {"key": "studentId", "value": "1", "type": "string"},
     {"key": "lostId", "value": "1", "type": "string"},
     {"key": "foundId", "value": "1", "type": "string"},
@@ -83,6 +84,31 @@
               "path": ["api", "students", "me"]
             },
             "description": "Get current student's profile"
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": ["pm.test('Status code is 200', function () {", "    pm.response.to.have.status(200);", "});"]}
+          }]
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"},
+              {"key": "Content-Type", "value": "application/json", "type": "text"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"phone\": \"1234567890\",\n  \"department\": \"CSE\",\n  \"year\": 3,\n  \"hostel\": \"A1\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/students/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "students", "me"]
+            },
+            "description": "Edit the logged-in student's own profile (student token required). Only name, phone, department, year (1 to 10) and hostel can change; send any subset. null or an empty string clears an optional field. Email, password and StudentID can never be changed here and are ignored if sent."
           },
           "event": [{
             "listen": "test",
@@ -260,7 +286,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "matches", "candidates", "{{lostId}}"]
             },
-            "description": "Get candidate found items for a lost item"
+            "description": "Live-scored candidate found items for a lost item, best first. Each entry has foundItem, score, textScore and imageScore (imageScore is null when either item has no photo or the image service is unavailable). Found items that already have a Confirmed match are left out."
           },
           "event": [{
             "listen": "test",
@@ -282,7 +308,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "matches"]
             },
-            "description": "Create a match record"
+            "description": "Create a Pending match record. Returns 409 if the lost or found item is not Open, the found item already has a Confirmed match, or the pair already exists. Matches are also created automatically when items are reported."
           },
           "event": [{
             "listen": "test",
@@ -341,7 +367,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "matches", "{{matchId}}", "status"]
             },
-            "description": "Update match status"
+            "description": "Update match status (Pending, Confirmed, Rejected). Confirming sets the lost item to Matched and notifies both students; moving a match out of Confirmed reopens the lost item. Returns 409 when confirming a match whose items are no longer open."
           },
           "event": [{
             "listen": "test",
@@ -354,52 +380,111 @@
       "name": "Admin",
       "item": [
         {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@campus.edu\",\n  \"password\": \"Admin@12345\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "login"]
+            },
+            "description": "Log in as the demo admin (seeded by sql/seed.sql) and obtain an admin JWT, saved as adminToken. Run this before the other Admin requests and before Claim / Update Claim Status."
+          },
+          "event": [{
+            "listen": "test",
+            "script": {"exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('Admin token saved', function () {",
+              "    var json = pm.response.json();",
+              "    pm.collectionVariables.set('adminToken', json.token);",
+              "});"
+            ]}
+          }]
+        },
+        {
           "name": "Get Pending Reports",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/admin/pending",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "pending"]
             },
-            "description": "Fetch all unverified reports"
+            "description": "Fetch all unverified reports. Admin token required."
           }
         },
         {
           "name": "Verify Lost Item Report",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"adminId\": 1\n}",
-              "options": {"raw": {"language": "json"}}
-            },
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/admin/lost/{{lostId}}/verify",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "lost", "{{lostId}}", "verify"]
             },
-            "description": "Mark a lost item as verified"
+            "description": "Mark a lost item as verified. Admin token required; the verifying admin is taken from the token (no body needed)."
           }
         },
         {
           "name": "Verify Found Item Report",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"adminId\": 1\n}",
-              "options": {"raw": {"language": "json"}}
-            },
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/admin/found/{{foundId}}/verify",
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "found", "{{foundId}}", "verify"]
             },
-            "description": "Mark a found item as verified"
+            "description": "Mark a found item as verified. Admin token required; the verifying admin is taken from the token (no body needed)."
+          }
+        },
+        {
+          "name": "Mark Found Item Returned",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/found/{{foundId}}/return",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "found", "{{foundId}}", "return"]
+            },
+            "description": "Mark a found item as handed back to its owner (Claimed to Returned) and close the lost report it was confirmed against. Admin token required. Returns 409 unless the found item is Claimed."
+          }
+        },
+        {
+          "name": "Delete Lost Item (spam)",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/lost/{{lostId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "lost", "{{lostId}}"]
+            },
+            "description": "PERMANENTLY remove a spam lost report together with its photos (rows and files), match records and those matches' notifications. Admin token required. This is the one deliberate hard delete; the response lists how much was removed."
+          }
+        },
+        {
+          "name": "Delete Found Item (spam)",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/found/{{foundId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "found", "{{foundId}}"]
+            },
+            "description": "PERMANENTLY remove a spam found report together with its photos (rows and files), match records and those matches' notifications, and the claims on it. A lost report that was Matched only through a removed Confirmed match goes back to Open. Admin token required."
           }
         }
       ]
@@ -411,10 +496,13 @@
           "name": "Create Claim",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"},
+              {"key": "Content-Type", "value": "application/json", "type": "text"}
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"studentId\": {{studentId}},\n  \"foundId\": {{foundId}}\n}",
+              "raw": "{\n  \"foundId\": {{foundId}}\n}",
               "options": {"raw": {"language": "json"}}
             },
             "url": {
@@ -422,43 +510,59 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims"]
             },
-            "description": "Submit ownership claim"
+            "description": "Submit an ownership claim as the logged-in student (student token required). The claimant is taken from the token; a studentId in the body is ignored."
+          }
+        },
+        {
+          "name": "List All Claims",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims"]
+            },
+            "description": "Admin lists every claim, newest first, with the claimant's name (StudentName) and the found item's name (FoundItemName). Admin token required."
           }
         },
         {
           "name": "Get Claims by Student",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/claims/student/{{studentId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims", "student", "{{studentId}}"]
             },
-            "description": "List claims for a student"
+            "description": "List claims for a student. Student token required, and studentId must be the logged-in student's own ID (an admin token can list anyone's)."
           }
         },
         {
           "name": "Get Claims by Found Item",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/claims/found/{{foundId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims", "found", "{{foundId}}"]
             },
-            "description": "List claims for a found item"
+            "description": "List claims on a found item. Student token required, and the found item must be one this student reported (an admin token can list any)."
           }
         },
         {
           "name": "Update Claim Status",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json", "type": "text"}],
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{adminToken}}", "type": "text"},
+              {"key": "Content-Type", "value": "application/json", "type": "text"}
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"adminId\": 1,\n  \"claimStatus\": \"Approved\",\n  \"verificationNotes\": \"Verified\"\n}",
+              "raw": "{\n  \"claimStatus\": \"Approved\",\n  \"verificationNotes\": \"Verified\"\n}",
               "options": {"raw": {"language": "json"}}
             },
             "url": {
@@ -466,7 +570,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "claims", "{{claimId}}", "status"]
             },
-            "description": "Admin updates claim status"
+            "description": "Admin approves or rejects a claim (admin token required; the deciding admin comes from the token, an adminId in the body is ignored). Approving sets the found item to Claimed and its Confirmed lost item to Closed (409 if already claimed or returned) and notifies the claimant."
           }
         }
       ]
@@ -478,26 +582,26 @@
           "name": "Get Student Notifications",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/notifications/student/{{studentId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "notifications", "student", "{{studentId}}"]
             },
-            "description": "Fetch notifications"
+            "description": "Fetch notifications. Student token required; set studentId to the logged-in student's own ID (an admin token can read anyone's)."
           }
         },
         {
           "name": "Mark Notification as Read",
           "request": {
             "method": "PUT",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
               "host": ["{{baseUrl}}"],
               "path": ["api", "notifications", "{{notificationId}}", "read"]
             },
-            "description": "Mark as read"
+            "description": "Mark as read. Student token required, and the notification must belong to that student (an admin token can mark any)."
           }
         }
       ]
@@ -509,20 +613,20 @@
           "name": "Upload Lost Item Images",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "body": {"mode": "formdata","formdata":[{"key":"images","type":"file","src":""}]},
             "url": {"raw": "{{baseUrl}}/api/uploads/lost/{{lostId}}","host":["{{baseUrl}}"],"path":["api","uploads","lost","{{lostId}}"]},
-            "description": "Upload images for lost item"
+            "description": "Upload images for a lost item. Student token required and the item must be the student's own report (an admin token also works)."
           }
         },
         {
           "name": "Upload Found Item Images",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "body": {"mode": "formdata","formdata":[{"key":"images","type":"file","src":""}]},
             "url": {"raw": "{{baseUrl}}/api/uploads/found/{{foundId}}","host":["{{baseUrl}}"],"path":["api","uploads","found","{{foundId}}"]},
-            "description": "Upload images for found item"
+            "description": "Upload images for a found item. Student token required and the item must be the student's own report (an admin token also works)."
           }
         },
         {

@@ -114,7 +114,45 @@ async function getFoundItemImages(foundId) {
   return images;
 }
 
+/**
+ * Look up which student reported a lost item
+ * @param {number} lostId
+ * @returns {Promise<number>} StudentID of the reporter
+ */
+async function getLostItemOwnerId(lostId) {
+  const [rows] = await pool.execute(
+    'SELECT StudentID FROM LOST_ITEM WHERE LostID = ?',
+    [lostId]
+  );
+  if (rows.length === 0) {
+    const error = new Error('Lost item not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  return rows[0].StudentID;
+}
+
+/**
+ * Look up which student reported a found item
+ * @param {number} foundId
+ * @returns {Promise<number>} StudentID of the reporter
+ */
+async function getFoundItemOwnerId(foundId) {
+  const [rows] = await pool.execute(
+    'SELECT StudentID FROM FOUND_ITEM WHERE FoundID = ?',
+    [foundId]
+  );
+  if (rows.length === 0) {
+    const error = new Error('Found item not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  return rows[0].StudentID;
+}
+
 module.exports = {
+  getLostItemOwnerId,
+  getFoundItemOwnerId,
   addLostItemImages,
   addFoundItemImages,
   getLostItemImages,

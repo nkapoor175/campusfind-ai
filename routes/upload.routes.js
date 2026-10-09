@@ -3,6 +3,43 @@ const router = express.Router();
 const multer = require('multer');
 const { uploadLostMulter, uploadFoundMulter } = require('../config/upload');
 const uploadController = require('../controllers/upload.controller');
+const uploadService = require('../services/upload.service');
+const { authenticate } = require('../middleware/auth');
+
+/**
+ * Only the student who reported an item (or an admin) may add photos to it.
+ * Runs before Multer so a refused request never writes a file to disk.
+ * @param {'lost' | 'found'} kind
+ */
+function requireItemOwnerOrAdmin(kind) {
+  return async (req, res, next) => {
+    if (req.user.role === 'admin') {
+      return next();
+    }
+
+    try {
+      const itemId = parseInt(kind === 'lost' ? req.params.lostId : req.params.foundId, 10);
+      if (isNaN(itemId) || itemId <= 0) {
+        return res.status(400).json({ message: `Invalid ${kind} item ID` });
+      }
+
+      const ownerId = kind === 'lost'
+        ? await uploadService.getLostItemOwnerId(itemId)
+        : await uploadService.getFoundItemOwnerId(itemId);
+
+      if (ownerId !== req.user.studentId) {
+        return res.status(403).json({ message: 'You can only add photos to your own reports' });
+      }
+      return next();
+    } catch (error) {
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
+      console.error('Error checking upload permission:', error);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+}
 
 /**
  * Middleware wrapper for Multer upload error handling
@@ -30,6 +67,8 @@ function handleMulterUpload(multerMiddleware) {
 // POST /api/uploads/lost/:lostId - Upload image(s) for a lost item
 router.post(
   '/lost/:lostId',
+  authenticate,
+  requireItemOwnerOrAdmin('lost'),
   handleMulterUpload(uploadLostMulter.array('images')),
   uploadController.uploadLostImages
 );
@@ -37,6 +76,8 @@ router.post(
 // POST /api/uploads/found/:foundId - Upload image(s) for a found item
 router.post(
   '/found/:foundId',
+  authenticate,
+  requireItemOwnerOrAdmin('found'),
   handleMulterUpload(uploadFoundMulter.array('images')),
   uploadController.uploadFoundImages
 );

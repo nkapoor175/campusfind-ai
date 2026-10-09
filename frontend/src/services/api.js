@@ -391,7 +391,24 @@ export const api = {
 
   async getMatches() {
     return withFallback(
-      () => request('/api/matches'),
+      async () => {
+        const matches = await request('/api/matches');
+        if (!Array.isArray(matches) || matches.length === 0) return matches;
+
+        // The server's match records only carry IDs, so attach the lost and found items
+        // that the match cards display.
+        const [lostItems, foundItems] = await Promise.all([
+          request('/api/lost-items'),
+          request('/api/found-items'),
+        ]);
+        const lostById = new Map((Array.isArray(lostItems) ? lostItems : []).map((item) => [item.LostID, item]));
+        const foundById = new Map((Array.isArray(foundItems) ? foundItems : []).map((item) => [item.FoundID, item]));
+        return matches.map((match) => ({
+          ...match,
+          lostItem: match.lostItem || lostById.get(match.LostID),
+          foundItem: match.foundItem || foundById.get(match.FoundID),
+        }));
+      },
       () => [...localMatches]
     );
   },

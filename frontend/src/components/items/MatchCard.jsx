@@ -84,7 +84,7 @@ export default function MatchCard({
                 <MapPin size={12} /> {lost.LostLocation || 'Unknown'}
               </p>
               <p className="match-item-meta">
-                <Calendar size={12} /> {lost.DateLost || 'Recent'}
+                <Calendar size={12} /> {lost.DateLost ? new Date(lost.DateLost).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
               </p>
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function MatchCard({
                 <MapPin size={12} /> {found.FoundLocation || 'Unknown'}
               </p>
               <p className="match-item-meta">
-                <Calendar size={12} /> {found.DateFound || 'Recent'}
+                <Calendar size={12} /> {found.DateFound ? new Date(found.DateFound).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
               </p>
             </div>
           </div>

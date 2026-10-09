@@ -58,7 +58,23 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
       setMyLostItems(lost || []);
       setMyFoundItems(found || []);
       setMyClaims(claims || []);
-      setMatches(matchList || []);
+      // Only the matches that involve this student's own reports, with the live score on pending ones
+      const myLostIds = new Set((lost || []).map((item) => item.LostID));
+      const myFoundIds = new Set((found || []).map((item) => item.FoundID));
+      const mine = (matchList || []).filter((m) => myLostIds.has(m.LostID) || myFoundIds.has(m.FoundID));
+      const pendingLostIds = [...new Set(mine.filter((m) => m.MatchStatus === 'Pending').map((m) => m.LostID))];
+      const candidateLists = await Promise.all(
+        pendingLostIds.map((lostId) =>
+          api.getCandidates(lostId).then((list) => [lostId, list]).catch(() => [lostId, []])
+        )
+      );
+      const scoreByPair = new Map();
+      for (const [lostId, list] of candidateLists) {
+        for (const candidate of Array.isArray(list) ? list : []) {
+          scoreByPair.set(`${lostId}:${candidate.foundItem.FoundID}`, candidate.score);
+        }
+      }
+      setMatches(mine.map((m) => ({ ...m, score: scoreByPair.get(`${m.LostID}:${m.FoundID}`) })));
       setNotifications(notifs || []);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -189,6 +205,7 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
                 <MatchCard
                   key={match.MatchID}
                   match={match}
+                  showActions={myLostItems.some((item) => item.LostID === match.LostID)}
                   onConfirm={handleConfirmMatch}
                   onClaim={handleClaimMatch}
                   onViewItem={(item, itemType) => onSelectItem(item, itemType)}

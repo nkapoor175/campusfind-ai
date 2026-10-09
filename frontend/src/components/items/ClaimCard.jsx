@@ -54,7 +54,7 @@ export default function ClaimCard({
           <h4 className="claim-item-title">{found.ItemName || 'Found Item'}</h4>
           <div className="claim-item-meta">
             <span><MapPin size={12} /> {found.FoundLocation || 'Campus'}</span>
-            <span><Calendar size={12} /> {found.DateFound || 'Recent'}</span>
+            <span><Calendar size={12} /> {found.DateFound ? new Date(found.DateFound).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}</span>
           </div>
         </div>
       </div>

@@ -144,6 +144,29 @@ async function withFallback(apiCall, fallbackFn) {
   }
 }
 
+// The server's claim rows only carry IDs, so attach the found item (and the claimant's name,
+// when the server sends it) that the claim cards display.
+async function withClaimDetails(claims, fallbackStudentName) {
+  if (!Array.isArray(claims) || claims.length === 0) return claims;
+  const foundItems = await request('/api/found-items');
+  const foundById = new Map((Array.isArray(foundItems) ? foundItems : []).map((item) => [item.FoundID, item]));
+  return claims.map((claim) => ({
+    ...claim,
+    foundItem: claim.foundItem || foundById.get(claim.FoundID),
+    studentName: claim.studentName || claim.StudentName || fallbackStudentName,
+  }));
+}
+
+// The logged-in student's name, when the claims being listed are their own.
+function currentUserName(studentId) {
+  try {
+    const saved = JSON.parse(localStorage.getItem('campusfind_user') || 'null');
+    return saved && String(saved.StudentID) === String(studentId) ? saved.Name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const api = {
   // ---------------- AUTH & STUDENT ----------------
   async login(email, password) {
@@ -479,14 +502,14 @@ export const api = {
 
   async getClaimsByStudent(studentId) {
     return withFallback(
-      () => request(`/api/claims/student/${studentId}`),
+      async () => withClaimDetails(await request(`/api/claims/student/${studentId}`), currentUserName(studentId)),
       () => localClaims.filter((c) => String(c.StudentID) === String(studentId))
     );
   },
 
   async getClaimsByFoundItem(foundId) {
     return withFallback(
-      () => request(`/api/claims/found/${foundId}`),
+      async () => withClaimDetails(await request(`/api/claims/found/${foundId}`)),
       () => localClaims.filter((c) => String(c.FoundID) === String(foundId))
     );
   },
@@ -495,7 +518,7 @@ export const api = {
     return withFallback(
       async () => {
         const claims = await request('/api/claims');
-        return Array.isArray(claims) ? claims : [];
+        return Array.isArray(claims) ? withClaimDetails(claims) : [];
       },
       () => [...localClaims]
     );

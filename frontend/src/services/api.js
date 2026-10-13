@@ -593,6 +593,53 @@ export const api = {
     );
   },
 
+  async returnFoundItem(id) {
+    return withFallback(
+      () => request(`/api/admin/found/${id}/return`, {
+        method: 'PUT',
+      }),
+      () => {
+        const item = localFoundItems.find((i) => String(i.FoundID) === String(id));
+        if (item) item.Status = 'Returned';
+        return { message: 'Found item marked as returned', item };
+      }
+    );
+  },
+
+  async deleteLostItem(id) {
+    return withFallback(
+      () => request(`/api/admin/lost/${id}`, {
+        method: 'DELETE',
+      }),
+      () => {
+        const idx = localLostItems.findIndex((i) => String(i.LostID) === String(id));
+        if (idx !== -1) localLostItems.splice(idx, 1);
+        return {
+          message: 'Lost item removed',
+          lostId: id,
+          removed: { images: 0, imageFiles: 0, matches: 0, notifications: 0 },
+        };
+      }
+    );
+  },
+
+  async deleteFoundItem(id) {
+    return withFallback(
+      () => request(`/api/admin/found/${id}`, {
+        method: 'DELETE',
+      }),
+      () => {
+        const idx = localFoundItems.findIndex((i) => String(i.FoundID) === String(id));
+        if (idx !== -1) localFoundItems.splice(idx, 1);
+        return {
+          message: 'Found item removed',
+          foundId: id,
+          removed: { images: 0, imageFiles: 0, matches: 0, notifications: 0, claims: 0, reopenedReports: 0 },
+        };
+      }
+    );
+  },
+
   // ---------------- NOTIFICATIONS ----------------
   async getNotifications(studentId) {
     return withFallback(

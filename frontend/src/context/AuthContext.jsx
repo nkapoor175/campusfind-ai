@@ -56,11 +56,13 @@ export function AuthProvider({ children }) {
   const register = async (formData) => {
     setLoading(true);
     try {
-      const student = await api.register(formData);
-      setUser(student);
+      await api.register(formData);
+      const res = await api.login(formData.email, formData.password);
+      setUser(res.student);
       setRole('student');
+      setToken(res.token);
       localStorage.setItem('campusfind_role', 'student');
-      return student;
+      return res;
     } finally {
       setLoading(false);
     }

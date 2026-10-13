@@ -82,6 +82,17 @@ let localClaims = [...INITIAL_CLAIMS];
 let localNotifications = [...INITIAL_NOTIFICATIONS];
 let localStudents = [...INITIAL_STUDENTS];
 
+let sessionExpiredHandler = null;
+
+export function onSessionExpired(handler) {
+  sessionExpiredHandler = handler;
+  return () => {
+    if (sessionExpiredHandler === handler) {
+      sessionExpiredHandler = null;
+    }
+  };
+}
+
 function getAuthHeader() {
   const token = localStorage.getItem('campusfind_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -113,6 +124,36 @@ async function request(endpoint, options = {}) {
       errorData.error ||
       errorData.message ||
       `Request failed with status ${res.status}`;
+
+    const isLoginEndpoint =
+      endpoint.endsWith('/login') ||
+      endpoint.includes('/students/login') ||
+      endpoint.includes('/admin/login');
+
+    if (res.status === 401 && !isLoginEndpoint) {
+      localStorage.removeItem('campusfind_token');
+      localStorage.removeItem('campusfind_user');
+      localStorage.removeItem('campusfind_role');
+
+      const expiredMsg = 'Session expired, please sign in again';
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('campusfind:session-expired', {
+            detail: { message: expiredMsg },
+          })
+        );
+      }
+
+      if (typeof sessionExpiredHandler === 'function') {
+        try {
+          sessionExpiredHandler(expiredMsg);
+        } catch (handlerErr) {
+          console.error('Error in sessionExpiredHandler:', handlerErr);
+        }
+      }
+    }
+
     throw new ApiError(message, res.status, errorData);
   }
 

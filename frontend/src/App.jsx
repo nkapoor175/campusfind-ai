@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ToastProvider } from './context/ToastContext';
+import { ToastProvider, useToast } from './context/ToastContext';
+import { onSessionExpired } from './services/api';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
+import DemoModeBanner from './components/common/DemoModeBanner';
 import ItemDetailModal from './components/items/ItemDetailModal';
 
 // Pages
@@ -19,8 +21,20 @@ import ClaimsPage from './pages/ClaimsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminManagementPage from './pages/AdminManagementPage';
 
+const PRIVATE_ROUTES = [
+  'dashboard',
+  'claims',
+  'notifications',
+  'report-lost',
+  'report-found',
+  'admin-dashboard',
+  'admin-management',
+];
+
 function MainApp() {
-  const { role } = useAuth();
+  const { user, token, logout } = useAuth();
+  const isAuthenticated = Boolean(user && token);
+  const toast = useToast();
   const [currentRoute, setCurrentRoute] = useState('landing');
 
   // Modal State for Item Details
@@ -28,7 +42,38 @@ function MainApp() {
   const [selectedItemType, setSelectedItemType] = useState('lost');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
+  useEffect(() => {
+    const handleSessionExpired = (detail) => {
+      logout();
+      setCurrentRoute('login');
+      const msg =
+        (typeof detail === 'string' ? detail : detail?.detail?.message) ||
+        'Session expired, please sign in again';
+      toast.error(msg);
+    };
+
+    const cleanupApiListener = onSessionExpired(handleSessionExpired);
+    const windowListener = (e) => handleSessionExpired(e);
+    window.addEventListener('campusfind:session-expired', windowListener);
+
+    return () => {
+      cleanupApiListener();
+      window.removeEventListener('campusfind:session-expired', windowListener);
+    };
+  }, [logout, toast]);
+
+  useEffect(() => {
+    if (!isAuthenticated && PRIVATE_ROUTES.includes(currentRoute)) {
+      setCurrentRoute('login');
+    }
+  }, [isAuthenticated, currentRoute]);
+
   const handleNavigate = (route) => {
+    if (!isAuthenticated && PRIVATE_ROUTES.includes(route)) {
+      setCurrentRoute('login');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     setCurrentRoute(route);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -40,6 +85,10 @@ function MainApp() {
   };
 
   const renderCurrentPage = () => {
+    if (!isAuthenticated && PRIVATE_ROUTES.includes(currentRoute)) {
+      return <LoginPage onNavigate={handleNavigate} />;
+    }
+
     switch (currentRoute) {
       case 'landing':
         return <LandingPage onNavigate={handleNavigate} />;
@@ -103,6 +152,7 @@ function MainApp() {
   return (
     <div className="app-root">
       <Navbar currentRoute={currentRoute} onNavigate={handleNavigate} />
+      <DemoModeBanner />
       <main className="main-content">{renderCurrentPage()}</main>
       <Footer onNavigate={handleNavigate} />
 

@@ -116,7 +116,7 @@ export default function ItemDetailModal({
 
   // Direct claim on found item being viewed
   const handleFileClaim = async () => {
-    if (!user) {
+    if (!user || !user.StudentID) {
       toast.error('Please login to file a claim');
       return;
     }
@@ -135,7 +135,7 @@ export default function ItemDetailModal({
 
   // Claim on candidate found item matched from lost view
   const handleClaimMatchedFound = async (foundId) => {
-    if (!user) {
+    if (!user || !user.StudentID) {
       toast.error('Please login to file a claim');
       return;
     }

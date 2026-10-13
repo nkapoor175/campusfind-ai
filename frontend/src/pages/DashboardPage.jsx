@@ -35,16 +35,21 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
   const [myClaims, setMyClaims] = useState([]);
   const [matches, setMatches] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const studentId = user?.StudentID || 2;
-  const firstName = user?.Name ? user.Name.split(' ')[0] : 'Parthvi';
+  const studentId = user?.StudentID;
+  const firstName = user?.Name ? user.Name.split(' ')[0] : 'Student';
+  const [loading, setLoading] = useState(() => Boolean(user?.StudentID));
 
   useEffect(() => {
-    loadDashboardData();
+    if (studentId) {
+      loadDashboardData();
+    }
   }, [studentId]);
 
   const loadDashboardData = async () => {
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [lost, found, claims, matchList, notifs] = await Promise.all([

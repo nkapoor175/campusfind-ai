@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, isDemoFallbackEnabled } from '../services/api';
 import { INITIAL_STUDENTS } from '../services/seedData';
 
 const AuthContext = createContext(null);
@@ -7,15 +7,37 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('campusfind_user');
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS[1];
+    const token = localStorage.getItem('campusfind_token');
+    if (saved && token) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return isDemoFallbackEnabled() ? INITIAL_STUDENTS[1] : null;
   });
-  const [role, setRole] = useState(() => {
-    return localStorage.getItem('campusfind_role') || 'student';
-  });
+
   const [token, setToken] = useState(() => {
-    return localStorage.getItem('campusfind_token') || 'demo_token_parthvi';
+    const saved = localStorage.getItem('campusfind_user');
+    const token = localStorage.getItem('campusfind_token');
+    if (saved && token) {
+      return token;
+    }
+    return isDemoFallbackEnabled() ? 'demo_token_parthvi' : null;
   });
-  const [unreadCount, setUnreadCount] = useState(2);
+
+  const [role, setRole] = useState(() => {
+    const saved = localStorage.getItem('campusfind_user');
+    const token = localStorage.getItem('campusfind_token');
+    const savedRole = localStorage.getItem('campusfind_role');
+    if (saved && token) {
+      return savedRole || 'student';
+    }
+    return isDemoFallbackEnabled() ? (savedRole || 'student') : null;
+  });
+
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -69,10 +91,16 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     setToken(null);
-    setRole('student');
+    setRole(null);
+    setUnreadCount(0);
     localStorage.removeItem('campusfind_token');
     localStorage.removeItem('campusfind_user');
     localStorage.removeItem('campusfind_role');
+  };
+
+  const switchRole = (newRole) => {
+    setRole(newRole);
+    localStorage.setItem('campusfind_role', newRole);
   };
 
   return (
@@ -87,6 +115,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        switchRole,
       }}
     >
       {children}

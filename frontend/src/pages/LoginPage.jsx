@@ -39,13 +39,16 @@ export default function LoginPage({ onNavigate }) {
   const handleQuickLogin = (demoEmail, demoPass) => {
     setEmail(demoEmail);
     setPassword(demoPass);
-    login(demoEmail, demoPass).then((res) => {
-      toast.success(`Logged in as ${demoEmail.includes('admin') ? 'Security Admin' : 'Student'}`);
-      onNavigate(demoEmail.includes('admin') ? 'admin-dashboard' : 'dashboard');
-    }).catch((err) => {
-      setError(err.message || 'Login failed. Is the backend running?');
-      toast.error('Login failed');
-    });
+    setError('');
+    login(demoEmail, demoPass)
+      .then(() => {
+        toast.success(`Logged in as ${demoEmail.includes('admin') ? 'Security Admin' : 'Student'}`);
+        onNavigate(demoEmail.includes('admin') ? 'admin-dashboard' : 'dashboard');
+      })
+      .catch((err) => {
+        setError(err.message || 'Login failed. Please check your credentials.');
+        toast.error('Login failed');
+      });
   };
 
   return (
@@ -113,10 +116,6 @@ export default function LoginPage({ onNavigate }) {
               />
 
               <div className="form-meta-row">
-                <label className="remember-me">
-                  <input type="checkbox" defaultChecked />
-                  <span>Remember me</span>
-                </label>
                 <a href="#forgot" onClick={(e) => { e.preventDefault(); toast.info('Contact campus IT desk for password reset'); }} className="forgot-link">
                   Forgot password?
                 </a>
@@ -274,16 +273,9 @@ export default function LoginPage({ onNavigate }) {
         .form-meta-row {
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-end;
           font-size: 0.85rem;
           margin-bottom: 1.5rem;
-        }
-        .remember-me {
-          display: flex;
-          align-items: center;
-          gap: 0.4rem;
-          color: var(--charcoal-600);
-          cursor: pointer;
         }
         .forgot-link {
           color: var(--coral-500);

@@ -34,7 +34,9 @@ export default function RegisterPage({ onNavigate }) {
     setError('');
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      const msg = 'Passwords do not match';
+      setError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -44,7 +46,7 @@ export default function RegisterPage({ onNavigate }) {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone: formData.phone,
+        phone: formData.phone.trim() || 'N/A',
         department: formData.department,
         year: Number(formData.year) || 1,
         hostel: formData.hostel,
@@ -52,7 +54,9 @@ export default function RegisterPage({ onNavigate }) {
       toast.success('Registration successful! Welcome to CampusFind.');
       onNavigate('dashboard');
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      const msg = err.message || 'Registration failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

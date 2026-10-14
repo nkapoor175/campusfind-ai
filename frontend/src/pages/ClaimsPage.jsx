@@ -57,6 +57,16 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
     }
   };
 
+  const handleReturnFoundItem = async (foundId) => {
+    try {
+      const res = await api.returnFoundItem(foundId);
+      toast.success(res?.message || `Found Item #${foundId} marked as returned`);
+      loadClaims();
+    } catch (err) {
+      toast.error(err.message || 'Failed to mark found item as returned');
+    }
+  };
+
   const filteredClaims = claims.filter((c) => {
     if (statusFilter !== 'All') {
       return (c.ClaimStatus || '').toLowerCase() === statusFilter.toLowerCase();
@@ -120,6 +130,7 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
                 isAdmin={isAdmin}
                 onUpdateStatus={handleUpdateClaimStatus}
                 onViewItem={(item) => onSelectItem(item, 'found')}
+                onReturnItem={handleReturnFoundItem}
               />
             ))}
           </div>

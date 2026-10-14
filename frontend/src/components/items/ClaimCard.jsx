@@ -15,6 +15,7 @@ export default function ClaimCard({
   const found = claim.foundItem || {};
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState(claim.VerificationNotes || '');
+  const canEditNotes = isAdmin && claim.ClaimStatus === 'Pending';
 
   const handleStatusChange = (status) => {
     if (onUpdateStatus) {
@@ -81,7 +82,7 @@ export default function ClaimCard({
         <div className="notes-header">
           <Shield size={14} className="notes-shield-icon" />
           <span>Security Admin Notes:</span>
-          {isAdmin && !isEditingNotes && (
+          {canEditNotes && !isEditingNotes && (
             <button
               type="button"
               onClick={() => setIsEditingNotes(true)}
@@ -92,7 +93,7 @@ export default function ClaimCard({
           )}
         </div>
 
-        {isEditingNotes ? (
+        {canEditNotes && isEditingNotes ? (
           <div className="notes-edit-box">
             <textarea
               value={notes}

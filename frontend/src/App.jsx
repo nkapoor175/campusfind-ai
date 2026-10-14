@@ -52,14 +52,7 @@ function MainApp() {
       toast.error(msg);
     };
 
-    const cleanupApiListener = onSessionExpired(handleSessionExpired);
-    const windowListener = (e) => handleSessionExpired(e);
-    window.addEventListener('campusfind:session-expired', windowListener);
-
-    return () => {
-      cleanupApiListener();
-      window.removeEventListener('campusfind:session-expired', windowListener);
-    };
+    return onSessionExpired(handleSessionExpired);
   }, [logout, toast]);
 
   useEffect(() => {
@@ -69,11 +62,8 @@ function MainApp() {
   }, [isAuthenticated, currentRoute]);
 
   const handleNavigate = (route) => {
-    if (!isAuthenticated && PRIVATE_ROUTES.includes(route)) {
-      setCurrentRoute('login');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
+    // No auth check here: a login page calls this right after signing in, while its copy of
+    // isAuthenticated is still stale. The render guard + effect above redirect unauthenticated users.
     setCurrentRoute(route);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

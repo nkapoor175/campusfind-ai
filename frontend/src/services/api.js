@@ -130,24 +130,16 @@ async function request(endpoint, options = {}) {
       endpoint.includes('/students/login') ||
       endpoint.includes('/admin/login');
 
-    if (res.status === 401 && !isLoginEndpoint) {
+    // Only react to the first 401 of a session: several requests can fail together, and
+    // once the token is cleared there is nothing left to expire.
+    if (res.status === 401 && !isLoginEndpoint && localStorage.getItem('campusfind_token')) {
       localStorage.removeItem('campusfind_token');
       localStorage.removeItem('campusfind_user');
       localStorage.removeItem('campusfind_role');
 
-      const expiredMsg = 'Session expired, please sign in again';
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('campusfind:session-expired', {
-            detail: { message: expiredMsg },
-          })
-        );
-      }
-
       if (typeof sessionExpiredHandler === 'function') {
         try {
-          sessionExpiredHandler(expiredMsg);
+          sessionExpiredHandler('Session expired, please sign in again');
         } catch (handlerErr) {
           console.error('Error in sessionExpiredHandler:', handlerErr);
         }

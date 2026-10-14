@@ -82,6 +82,17 @@ let localClaims = [...INITIAL_CLAIMS];
 let localNotifications = [...INITIAL_NOTIFICATIONS];
 let localStudents = [...INITIAL_STUDENTS];
 
+let sessionExpiredHandler = null;
+
+export function onSessionExpired(handler) {
+  sessionExpiredHandler = handler;
+  return () => {
+    if (sessionExpiredHandler === handler) {
+      sessionExpiredHandler = null;
+    }
+  };
+}
+
 function getAuthHeader() {
   const token = localStorage.getItem('campusfind_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -113,6 +124,28 @@ async function request(endpoint, options = {}) {
       errorData.error ||
       errorData.message ||
       `Request failed with status ${res.status}`;
+
+    const isLoginEndpoint =
+      endpoint.endsWith('/login') ||
+      endpoint.includes('/students/login') ||
+      endpoint.includes('/admin/login');
+
+    // Only react to the first 401 of a session: several requests can fail together, and
+    // once the token is cleared there is nothing left to expire.
+    if (res.status === 401 && !isLoginEndpoint && localStorage.getItem('campusfind_token')) {
+      localStorage.removeItem('campusfind_token');
+      localStorage.removeItem('campusfind_user');
+      localStorage.removeItem('campusfind_role');
+
+      if (typeof sessionExpiredHandler === 'function') {
+        try {
+          sessionExpiredHandler('Session expired, please sign in again');
+        } catch (handlerErr) {
+          console.error('Error in sessionExpiredHandler:', handlerErr);
+        }
+      }
+    }
+
     throw new ApiError(message, res.status, errorData);
   }
 
@@ -589,6 +622,53 @@ export const api = {
         const item = localFoundItems.find((i) => String(i.FoundID) === String(id));
         if (item) item.AdminID = 1;
         return { message: 'Found item verified successfully', item };
+      }
+    );
+  },
+
+  async returnFoundItem(id) {
+    return withFallback(
+      () => request(`/api/admin/found/${id}/return`, {
+        method: 'PUT',
+      }),
+      () => {
+        const item = localFoundItems.find((i) => String(i.FoundID) === String(id));
+        if (item) item.Status = 'Returned';
+        return { message: 'Found item marked as returned', item };
+      }
+    );
+  },
+
+  async deleteLostItem(id) {
+    return withFallback(
+      () => request(`/api/admin/lost/${id}`, {
+        method: 'DELETE',
+      }),
+      () => {
+        const idx = localLostItems.findIndex((i) => String(i.LostID) === String(id));
+        if (idx !== -1) localLostItems.splice(idx, 1);
+        return {
+          message: 'Lost item removed',
+          lostId: id,
+          removed: { images: 0, imageFiles: 0, matches: 0, notifications: 0 },
+        };
+      }
+    );
+  },
+
+  async deleteFoundItem(id) {
+    return withFallback(
+      () => request(`/api/admin/found/${id}`, {
+        method: 'DELETE',
+      }),
+      () => {
+        const idx = localFoundItems.findIndex((i) => String(i.FoundID) === String(id));
+        if (idx !== -1) localFoundItems.splice(idx, 1);
+        return {
+          message: 'Found item removed',
+          foundId: id,
+          removed: { images: 0, imageFiles: 0, matches: 0, notifications: 0, claims: 0, reopenedReports: 0 },
+        };
       }
     );
   },

@@ -2,24 +2,26 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
   Bell,
-  Search,
   PlusCircle,
   Shield,
   User,
   LogOut,
   Menu,
   X,
-  Sparkles,
-  Layers,
-  Inbox,
-  FileCheck2,
 } from 'lucide-react';
 import Button from '../common/Button';
 
 export default function Navbar({ currentRoute, onNavigate }) {
-  const { user, role, unreadCount, logout } = useAuth();
+  const { user, role, token, unreadCount, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  const isAuthenticated = Boolean(user && token);
+
+  const publicNavItems = [
+    { id: 'lost-items', label: 'Lost Items' },
+    { id: 'found-items', label: 'Found Items' },
+  ];
 
   const studentNavItems = [
     { id: 'dashboard', label: 'Dashboard' },
@@ -34,7 +36,9 @@ export default function Navbar({ currentRoute, onNavigate }) {
     { id: 'claims', label: 'Claims Review' },
   ];
 
-  const navItems = role === 'admin' ? adminNavItems : studentNavItems;
+  const navItems = !isAuthenticated
+    ? publicNavItems
+    : (role === 'admin' ? adminNavItems : studentNavItems);
 
   const handleNavClick = (id) => {
     onNavigate(id);
@@ -45,7 +49,10 @@ export default function Navbar({ currentRoute, onNavigate }) {
     <header className="navbar-header">
       <div className="app-container navbar-inner">
         {/* Brand Wordmark & Logo */}
-        <div className="brand-wrap pressable" onClick={() => handleNavClick(role === 'admin' ? 'admin-dashboard' : 'landing')}>
+        <div
+          className="brand-wrap pressable"
+          onClick={() => handleNavClick(isAuthenticated && role === 'admin' ? 'admin-dashboard' : 'landing')}
+        >
           <div className="brand-logo-mark">
             <svg width="34" height="34" viewBox="0 0 100 100" fill="none">
               <rect x="14" y="24" width="72" height="66" rx="24" fill="#E06D53" />
@@ -82,108 +89,129 @@ export default function Navbar({ currentRoute, onNavigate }) {
 
         {/* Right Action Controls */}
         <div className="navbar-actions">
-          {/* Shows who is signed in (the role comes from a real login, so it cannot be toggled) */}
-          <span
-            className={`role-toggle-pill ${role === 'admin' ? 'is-admin' : ''}`}
-            title={role === 'admin' ? 'Signed in as Security Admin' : 'Signed in as a student'}
-            style={{ cursor: 'default' }}
-          >
-            {role === 'admin' ? (
-              <>
-                <Shield size={14} /> Admin Mode
-              </>
-            ) : (
-              <>
-                <User size={14} /> Student View
-              </>
-            )}
-          </span>
+          {isAuthenticated ? (
+            <>
+              {/* Shows who is signed in */}
+              <span
+                className={`role-toggle-pill ${role === 'admin' ? 'is-admin' : ''}`}
+                title={role === 'admin' ? 'Signed in as Security Admin' : 'Signed in as a student'}
+                style={{ cursor: 'default' }}
+              >
+                {role === 'admin' ? (
+                  <>
+                    <Shield size={14} /> Admin Mode
+                  </>
+                ) : (
+                  <>
+                    <User size={14} /> Student View
+                  </>
+                )}
+              </span>
 
-          {/* Notifications Bell */}
-          <button
-            type="button"
-            onClick={() => handleNavClick('notifications')}
-            className="notif-bell-btn pressable"
-            aria-label="View notifications"
-          >
-            <Bell size={19} />
-            {unreadCount > 0 && (
-              <span className="notif-badge-bubble">{unreadCount}</span>
-            )}
-          </button>
+              {/* Notifications Bell */}
+              <button
+                type="button"
+                onClick={() => handleNavClick('notifications')}
+                className="notif-bell-btn pressable"
+                aria-label="View notifications"
+              >
+                <Bell size={19} />
+                {unreadCount > 0 && (
+                  <span className="notif-badge-bubble">{unreadCount}</span>
+                )}
+              </button>
 
-          {/* Quick Action: Report Lost / Found (Student only) */}
-          {role === 'student' && (
-            <div className="nav-report-btns">
+              {/* Quick Action: Report Lost / Found (Student only) */}
+              {role === 'student' && (
+                <div className="nav-report-btns">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={PlusCircle}
+                    onClick={() => handleNavClick('report-lost')}
+                  >
+                    Report Lost
+                  </Button>
+                </div>
+              )}
+
+              {/* User Profile / Menu */}
+              <div className="user-menu-wrap">
+                <button
+                  type="button"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="user-avatar-btn pressable"
+                  title={user?.Name || 'User profile'}
+                >
+                  <div className="avatar-initials">
+                    {user?.Name ? user.Name.charAt(0) : 'U'}
+                  </div>
+                </button>
+
+                {userDropdownOpen && (
+                  <div className="user-dropdown-card fade-in">
+                    <div className="dropdown-user-info">
+                      <p className="dropdown-user-name">{user?.Name || 'Campus Student'}</p>
+                      <p className="dropdown-user-email">{user?.Email || 'student@campus.edu'}</p>
+                      <span className="badge badge-peach" style={{ marginTop: '0.25rem' }}>
+                        {role === 'admin' ? 'Security Admin' : user?.Department || 'Student'}
+                      </span>
+                    </div>
+                    <div className="dropdown-divider" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        handleNavClick('dashboard');
+                      }}
+                      className="dropdown-item"
+                    >
+                      <User size={16} /> My Profile &amp; Reports
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        handleNavClick('notifications');
+                      }}
+                      className="dropdown-item"
+                    >
+                      <Bell size={16} /> Notifications ({unreadCount})
+                    </button>
+                    <div className="dropdown-divider" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        logout();
+                        handleNavClick('login');
+                      }}
+                      className="dropdown-item logout"
+                    >
+                      <LogOut size={16} /> Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="nav-auth-btns">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleNavClick('login')}
+              >
+                Sign In
+              </Button>
               <Button
                 variant="primary"
                 size="sm"
-                icon={PlusCircle}
-                onClick={() => handleNavClick('report-lost')}
+                onClick={() => handleNavClick('register')}
               >
-                Report Lost
+                Register
               </Button>
             </div>
           )}
-
-          {/* User Profile / Menu */}
-          <div className="user-menu-wrap">
-            <button
-              type="button"
-              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-              className="user-avatar-btn pressable"
-              title={user?.Name || 'User profile'}
-            >
-              <div className="avatar-initials">
-                {user?.Name ? user.Name.charAt(0) : 'U'}
-              </div>
-            </button>
-
-            {userDropdownOpen && (
-              <div className="user-dropdown-card fade-in">
-                <div className="dropdown-user-info">
-                  <p className="dropdown-user-name">{user?.Name || 'Campus Student'}</p>
-                  <p className="dropdown-user-email">{user?.Email || 'student@campus.edu'}</p>
-                  <span className="badge badge-peach" style={{ marginTop: '0.25rem' }}>
-                    {role === 'admin' ? 'Security Admin' : user?.Department || 'Student'}
-                  </span>
-                </div>
-                <div className="dropdown-divider" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    handleNavClick('dashboard');
-                  }}
-                  className="dropdown-item"
-                >
-                  <User size={16} /> My Profile &amp; Reports
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    handleNavClick('notifications');
-                  }}
-                  className="dropdown-item"
-                >
-                  <Bell size={16} /> Notifications ({unreadCount})
-                </button>
-                <div className="dropdown-divider" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    logout();
-                    handleNavClick('login');
-                  }}
-                  className="dropdown-item logout"
-                >
-                  <LogOut size={16} /> Sign Out
-                </button>
-              </div>
-            )}
-          </div>
 
           {/* Mobile Hamburger toggle */}
           <button
@@ -212,22 +240,45 @@ export default function Navbar({ currentRoute, onNavigate }) {
           ))}
           <div className="mobile-drawer-divider" />
           <div className="mobile-cta-row">
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => handleNavClick('report-lost')}
-              className="w-full"
-            >
-              Report Lost Item
-            </Button>
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => handleNavClick('report-found')}
-              className="w-full"
-            >
-              Report Found Item
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => handleNavClick('report-lost')}
+                  className="w-full"
+                >
+                  Report Lost Item
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => handleNavClick('report-found')}
+                  className="w-full"
+                >
+                  Report Found Item
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => handleNavClick('login')}
+                  className="w-full"
+                >
+                  Sign In
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => handleNavClick('register')}
+                  className="w-full"
+                >
+                  Register
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -325,6 +376,11 @@ export default function Navbar({ currentRoute, onNavigate }) {
           display: flex;
           align-items: center;
           gap: 0.75rem;
+        }
+        .nav-auth-btns {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
         }
         .role-toggle-pill {
           display: inline-flex;

@@ -1,30 +1,83 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
-  ArrowRight,
   ShieldCheck,
   Search,
   CheckCircle2,
-  Clock,
   HeartHandshake,
   PlusCircle,
-  HelpCircle,
 } from 'lucide-react';
 import Button from '../components/common/Button';
-import Card from '../components/common/Card';
 import {
   BackpackIllustration,
   WaterBottleIllustration,
   HeadphonesIllustration,
   KeysIllustration,
-  PhoneIllustration,
   CampusMascot,
   MatchSparkleIllustration,
 } from '../assets/illustrations/IllustratedIcons';
-import { CAMPUS_CATEGORIES } from '../services/seedData';
+import { api } from '../services/api';
 
 export default function LandingPage({ onNavigate }) {
   const [quickSearch, setQuickSearch] = useState('');
+  const [stats, setStats] = useState({
+    totalReports: '—',
+    suggestedMatches: '—',
+    itemsReturned: '—',
+    adminVerified: '—',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchStats = async () => {
+      try {
+        const [lostItems, foundItems, matches] = await Promise.all([
+          api.getLostItems(),
+          api.getFoundItems(),
+          api.getMatches(),
+        ]);
+
+        if (!isMounted) return;
+
+        const lostList = Array.isArray(lostItems) ? lostItems : [];
+        const foundList = Array.isArray(foundItems) ? foundItems : [];
+        const matchList = Array.isArray(matches) ? matches : [];
+
+        const totalReports = lostList.length + foundList.length;
+        const suggestedMatches = matchList.length;
+        const itemsReturned = foundList.filter(
+          (item) => item?.Status === 'Returned'
+        ).length;
+        const adminVerified = [...lostList, ...foundList].filter(
+          (item) => item?.AdminID !== null && item?.AdminID !== undefined
+        ).length;
+
+        setStats({
+          totalReports,
+          suggestedMatches,
+          itemsReturned,
+          adminVerified,
+        });
+      } catch (err) {
+        console.error('Failed to load landing page stats:', err);
+        if (isMounted) {
+          setStats({
+            totalReports: '—',
+            suggestedMatches: '—',
+            itemsReturned: '—',
+            adminVerified: '—',
+          });
+        }
+      }
+    };
+
+    fetchStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -144,7 +197,7 @@ export default function LandingPage({ onNavigate }) {
                 <Sparkles size={16} className="callout-sparkle" />
                 <div>
                   <span className="callout-title">AI Match Found!</span>
-                  <span className="callout-desc">94% similarity score</span>
+                  <span className="callout-desc">Example: 94% similarity score</span>
                 </div>
               </div>
             </div>
@@ -156,20 +209,20 @@ export default function LandingPage({ onNavigate }) {
       <section className="stats-banner-section">
         <div className="app-container stats-grid">
           <div className="stat-pill-box">
-            <span className="stat-big-num">240+</span>
-            <span className="stat-text-desc">Items Reunited on Campus</span>
+            <span className="stat-big-num">{stats.totalReports}</span>
+            <span className="stat-text-desc">Total Reports</span>
           </div>
           <div className="stat-pill-box">
-            <span className="stat-big-num">&lt; 3 hrs</span>
-            <span className="stat-text-desc">Average Match Notification</span>
+            <span className="stat-big-num">{stats.suggestedMatches}</span>
+            <span className="stat-text-desc">Suggested Matches</span>
           </div>
           <div className="stat-pill-box">
-            <span className="stat-big-num">95%</span>
-            <span className="stat-text-desc">AI Scoring Precision</span>
+            <span className="stat-big-num">{stats.itemsReturned}</span>
+            <span className="stat-text-desc">Items Returned</span>
           </div>
           <div className="stat-pill-box">
-            <span className="stat-big-num">100%</span>
-            <span className="stat-text-desc">Verified Admin Handover</span>
+            <span className="stat-big-num">{stats.adminVerified}</span>
+            <span className="stat-text-desc">Admin Verified</span>
           </div>
         </div>
       </section>
@@ -210,7 +263,7 @@ export default function LandingPage({ onNavigate }) {
             <div className="ai-mockup-card blob-card-2">
               <div className="ai-mockup-header">
                 <Sparkles size={18} className="ai-sparkle-gold" />
-                <span>Live Similarity Matrix</span>
+                <span>AI Match Preview (Example)</span>
                 <span className="live-status-dot" />
               </div>
 
@@ -225,7 +278,7 @@ export default function LandingPage({ onNavigate }) {
                 <div className="ai-match-meter">
                   <MatchSparkleIllustration size={64} />
                   <span className="meter-score">94%</span>
-                  <span className="meter-label">Match Score</span>
+                  <span className="meter-label">Example Match Score</span>
                 </div>
 
                 <div className="ai-item-preview">

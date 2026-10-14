@@ -52,6 +52,12 @@ export default function ReportLostPage({ onNavigate }) {
     e.preventDefault();
     setError('');
 
+    if (!user?.StudentID) {
+      setError('Please log in to report a lost item');
+      toast.error('Please log in to report a lost item');
+      return;
+    }
+
     if (!formData.itemName.trim()) {
       setError('Item Name is required');
       return;
@@ -71,7 +77,7 @@ export default function ReportLostPage({ onNavigate }) {
         description: formData.description,
         dateLost: formData.dateLost,
         lostLocation: formData.lostLocation,
-        studentId: user?.StudentID || 2,
+        studentId: user.StudentID,
         imagePreview: imagePreview,
       });
 

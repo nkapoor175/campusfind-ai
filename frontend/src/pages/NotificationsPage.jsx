@@ -13,16 +13,23 @@ export default function NotificationsPage({ onNavigate }) {
   const toast = useToast();
 
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('all'); // 'all' | 'unread' | 'matches'
 
-  const studentId = user?.StudentID || 2;
+  const studentId = user?.StudentID;
+  const [loading, setLoading] = useState(() => Boolean(user?.StudentID));
 
   useEffect(() => {
-    loadNotifications();
+    if (studentId) {
+      loadNotifications();
+    }
   }, [studentId]);
 
   const loadNotifications = async () => {
+    if (!studentId) {
+      setLoading(false);
+      setNotifications([]);
+      return;
+    }
     setLoading(true);
     try {
       const data = await api.getNotifications(studentId);

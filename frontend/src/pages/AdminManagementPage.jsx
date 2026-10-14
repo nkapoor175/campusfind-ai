@@ -1,18 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
-  Search,
-  Filter,
-  CheckCircle2,
-  XCircle,
   Clock,
-  Layers,
-  FileCheck2,
-  Sparkles,
   Eye,
   RefreshCw,
 } from 'lucide-react';
-import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import SearchBar from '../components/common/SearchBar';
 import StatusBadge from '../components/common/StatusBadge';
@@ -31,6 +23,21 @@ function formatDate(value) {
     : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function formatDeleteMessage(defaultMsg, res) {
+  if (res && res.removed && typeof res.removed === 'object') {
+    const details = [];
+    const { matches, claims, notifications, images } = res.removed;
+    if (matches) details.push(`${matches} match${matches === 1 ? '' : 'es'}`);
+    if (claims) details.push(`${claims} claim${claims === 1 ? '' : 's'}`);
+    if (notifications) details.push(`${notifications} notification${notifications === 1 ? '' : 's'}`);
+    if (images) details.push(`${images} photo${images === 1 ? '' : 's'}`);
+    if (details.length > 0) {
+      return `${res.message || defaultMsg} (${details.join(', ')} cleaned up)`;
+    }
+  }
+  return res?.message || defaultMsg;
+}
+
 export default function AdminManagementPage({ onSelectItem }) {
   const toast = useToast();
 
@@ -42,10 +49,6 @@ export default function AdminManagementPage({ onSelectItem }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-
-  useEffect(() => {
-    loadAllData();
-  }, []);
 
   const loadAllData = async () => {
     setLoading(true);
@@ -68,6 +71,35 @@ export default function AdminManagementPage({ onSelectItem }) {
     }
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchInitialData = async () => {
+      try {
+        const [lost, found, claimList, matchList] = await Promise.all([
+          api.getLostItems(),
+          api.getFoundItems(),
+          api.getAllClaims(),
+          api.getMatches(),
+        ]);
+        if (!isMounted) return;
+        setLostItems(lost || []);
+        setFoundItems(found || []);
+        setClaims(claimList || []);
+        setMatches(matchList || []);
+      } catch (err) {
+        console.error('Error fetching admin management data:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleVerifyLost = async (lostId) => {
     try {
       await api.verifyLostItem(lostId);
@@ -85,6 +117,46 @@ export default function AdminManagementPage({ onSelectItem }) {
       loadAllData();
     } catch {
       toast.error('Failed to verify item');
+    }
+  };
+
+  const handleReturnFound = async (foundId) => {
+    try {
+      const res = await api.returnFoundItem(foundId);
+      toast.success(res?.message || `Found Item #${foundId} marked as returned`);
+      loadAllData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to mark item as returned');
+    }
+  };
+
+  const handleDeleteLost = async (item) => {
+    const confirmed = window.confirm(
+      `Permanently remove lost report #${item.LostID} ("${item.ItemName}")?\n\nThis will permanently delete all associated photos, matches, and notifications.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await api.deleteLostItem(item.LostID);
+      toast.success(formatDeleteMessage(`Lost Item #${item.LostID} removed`, res));
+      loadAllData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove lost item');
+    }
+  };
+
+  const handleDeleteFound = async (item) => {
+    const confirmed = window.confirm(
+      `Permanently remove found report #${item.FoundID} ("${item.ItemName}")?\n\nThis will permanently delete all associated photos, matches, claims, and notifications.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await api.deleteFoundItem(item.FoundID);
+      toast.success(formatDeleteMessage(`Found Item #${item.FoundID} removed`, res));
+      loadAllData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove found item');
     }
   };
 
@@ -314,6 +386,14 @@ export default function AdminManagementPage({ onSelectItem }) {
                               >
                                 View
                               </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="btn-danger-text"
+                                onClick={() => handleDeleteLost(item)}
+                              >
+                                Remove
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -388,6 +468,15 @@ export default function AdminManagementPage({ onSelectItem }) {
                                   Verify
                                 </Button>
                               )}
+                              {item.Status === 'Claimed' && (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleReturnFound(item.FoundID)}
+                                >
+                                  Mark as Returned
+                                </Button>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -395,6 +484,14 @@ export default function AdminManagementPage({ onSelectItem }) {
                                 onClick={() => onSelectItem(item, 'found')}
                               >
                                 View
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="btn-danger-text"
+                                onClick={() => handleDeleteFound(item)}
+                              >
+                                Remove
                               </Button>
                             </div>
                           </td>
@@ -460,8 +557,18 @@ export default function AdminManagementPage({ onSelectItem }) {
                                     Reject
                                   </Button>
                                 </>
+                              ) : claim.foundItem?.Status === 'Claimed' ? (
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleReturnFound(claim.foundItem.FoundID || claim.FoundID)}
+                                >
+                                  Mark as Returned
+                                </Button>
                               ) : (
-                                <span className="status-resolved-tag">Resolved</span>
+                                <span className="status-resolved-tag">
+                                  {claim.foundItem?.Status === 'Returned' ? 'Returned' : 'Resolved'}
+                                </span>
                               )}
                             </div>
                           </td>
@@ -728,6 +835,15 @@ export default function AdminManagementPage({ onSelectItem }) {
           display: flex;
           justify-content: flex-end;
           gap: 0.4rem;
+        }
+        .btn-danger-text {
+          color: #D93838 !important;
+          border-color: rgba(217, 56, 56, 0.35) !important;
+        }
+        .btn-danger-text:hover:not(:disabled) {
+          background-color: #FFF2F2 !important;
+          border-color: #D93838 !important;
+          color: #B91C1C !important;
         }
         .status-resolved-tag {
           font-size: 0.78rem;

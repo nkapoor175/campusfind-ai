@@ -151,6 +151,10 @@ export default function MatchCard({
             <div className="confirmed-note">
               <CheckCircle2 size={16} /> Match Confirmed — Proceed to Security for Claim Pickup
             </div>
+          ) : match.MatchStatus === 'Rejected' ? (
+            <div className="rejected-note">
+              <X size={16} /> Marked as not a match — we'll keep looking
+            </div>
           ) : (
             <>
               {onClaim && (
@@ -188,6 +192,14 @@ export default function MatchCard({
       )}
 
       <style>{`
+        .rejected-note {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: var(--charcoal-600);
+        }
         .match-card-wrap {
           border-left: 5px solid var(--peach-500);
           background: #FFFFFF;

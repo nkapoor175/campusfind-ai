@@ -11,10 +11,12 @@ export default function ClaimCard({
   isAdmin = false,
   onUpdateStatus,
   onViewItem,
+  onReturnItem,
 }) {
   const found = claim.foundItem || {};
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState(claim.VerificationNotes || '');
+  const canEditNotes = isAdmin && claim.ClaimStatus === 'Pending';
 
   const handleStatusChange = (status) => {
     if (onUpdateStatus) {
@@ -81,7 +83,7 @@ export default function ClaimCard({
         <div className="notes-header">
           <Shield size={14} className="notes-shield-icon" />
           <span>Security Admin Notes:</span>
-          {isAdmin && !isEditingNotes && (
+          {canEditNotes && !isEditingNotes && (
             <button
               type="button"
               onClick={() => setIsEditingNotes(true)}
@@ -92,7 +94,7 @@ export default function ClaimCard({
           )}
         </div>
 
-        {isEditingNotes ? (
+        {canEditNotes && isEditingNotes ? (
           <div className="notes-edit-box">
             <textarea
               value={notes}
@@ -126,24 +128,38 @@ export default function ClaimCard({
       </div>
 
       {/* Admin Action Buttons */}
-      {isAdmin && claim.ClaimStatus === 'Pending' && (
+      {isAdmin && (
         <div className="admin-claim-actions">
-          <Button
-            variant="sage"
-            size="sm"
-            icon={CheckCircle}
-            onClick={() => handleStatusChange('Approved')}
-          >
-            Approve Claim
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            icon={XCircle}
-            onClick={() => handleStatusChange('Rejected')}
-          >
-            Reject Claim
-          </Button>
+          {claim.ClaimStatus === 'Pending' && (
+            <>
+              <Button
+                variant="sage"
+                size="sm"
+                icon={CheckCircle}
+                onClick={() => handleStatusChange('Approved')}
+              >
+                Approve Claim
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={XCircle}
+                onClick={() => handleStatusChange('Rejected')}
+              >
+                Reject Claim
+              </Button>
+            </>
+          )}
+          {claim.ClaimStatus === 'Approved' && found?.Status === 'Claimed' && onReturnItem && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={CheckCircle}
+              onClick={() => onReturnItem(found.FoundID || claim.FoundID)}
+            >
+              Mark as Returned
+            </Button>
+          )}
         </div>
       )}
 

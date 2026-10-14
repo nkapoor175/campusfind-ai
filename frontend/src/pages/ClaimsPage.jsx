@@ -13,17 +13,24 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
   const toast = useToast();
 
   const [claims, setClaims] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
 
   const isAdmin = role === 'admin';
-  const studentId = user?.StudentID || 2;
+  const studentId = user?.StudentID;
+  const [loading, setLoading] = useState(() => Boolean(isAdmin || user?.StudentID));
 
   useEffect(() => {
-    loadClaims();
+    if (isAdmin || studentId) {
+      loadClaims();
+    }
   }, [studentId, role]);
 
   const loadClaims = async () => {
+    if (!isAdmin && !studentId) {
+      setLoading(false);
+      setClaims([]);
+      return;
+    }
     setLoading(true);
     try {
       if (isAdmin) {
@@ -47,6 +54,16 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
       loadClaims();
     } catch {
       toast.error('Failed to update claim status');
+    }
+  };
+
+  const handleReturnFoundItem = async (foundId) => {
+    try {
+      const res = await api.returnFoundItem(foundId);
+      toast.success(res?.message || `Found Item #${foundId} marked as returned`);
+      loadClaims();
+    } catch (err) {
+      toast.error(err.message || 'Failed to mark found item as returned');
     }
   };
 
@@ -113,6 +130,7 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
                 isAdmin={isAdmin}
                 onUpdateStatus={handleUpdateClaimStatus}
                 onViewItem={(item) => onSelectItem(item, 'found')}
+                onReturnItem={handleReturnFoundItem}
               />
             ))}
           </div>

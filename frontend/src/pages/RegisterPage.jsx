@@ -46,7 +46,7 @@ export default function RegisterPage({ onNavigate }) {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        phone: formData.phone.trim() || 'N/A',
+        phone: formData.phone.trim() || null,
         department: formData.department,
         year: Number(formData.year) || 1,
         hostel: formData.hostel,

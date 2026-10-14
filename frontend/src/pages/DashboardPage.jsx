@@ -98,6 +98,16 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
     }
   };
 
+  const handleRejectMatch = async (match) => {
+    try {
+      await api.updateMatchStatus(match.MatchID, 'Rejected');
+      toast.success('Match rejected.');
+      loadDashboardData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject match');
+    }
+  };
+
   const handleClaimMatch = async (match) => {
     try {
       await api.createClaim(match.FoundID);
@@ -212,6 +222,7 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
                   match={match}
                   showActions={myLostItems.some((item) => item.LostID === match.LostID)}
                   onConfirm={handleConfirmMatch}
+                  onReject={handleRejectMatch}
                   onClaim={handleClaimMatch}
                   onViewItem={(item, itemType) => onSelectItem(item, itemType)}
                 />

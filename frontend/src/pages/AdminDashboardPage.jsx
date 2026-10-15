@@ -22,6 +22,15 @@ import { getItemImageUrl } from '../utils/imageUrl';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
+// The server sends dates as ISO timestamps; show them as "9 Oct 2026".
+function formatDate(value) {
+  if (!value) return 'Recent';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
   const toast = useToast();
 
@@ -197,7 +206,7 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
                         {item.LostLocation} · {item.Category} · {item.Color}
                       </p>
                       <span className="queue-date">
-                        Date: {item.DateLost || 'Recent'}
+                        Date: {formatDate(item.DateLost)}
                       </span>
                     </div>
                     <Button
@@ -253,7 +262,7 @@ export default function AdminDashboardPage({ onNavigate, onSelectItem }) {
                         {item.FoundLocation} · {item.Category} · {item.Color}
                       </p>
                       <span className="queue-date">
-                        Date: {item.DateFound || 'Recent'}
+                        Date: {formatDate(item.DateFound)}
                       </span>
                     </div>
                     <Button

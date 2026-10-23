@@ -184,14 +184,14 @@ async function main() {
         && !pendingAfter.data.foundItems.some((i) => i.FoundID === found.FoundID));
 
     // 6. candidates (live scores)
-    const candidates = await call('GET', `/api/matches/candidates/${lost.LostID}`);
+    const candidates = await call('GET', `/api/matches/candidates/${lost.LostID}`, null, people.owner.token);
     const entry = candidates.status === 200 && candidates.data.find((c) => c.foundItem.FoundID === found.FoundID);
     check('candidates lists the found item with a score', !!entry && typeof entry.score === 'number' && entry.score > 0,
         entry ? `score ${entry.score}, text ${entry.textScore}, image ${entry.imageScore}` : '');
 
     // 7. automatic matching created a Pending match
     const match = await waitFor(async () => {
-        const all = await call('GET', '/api/matches');
+        const all = await call('GET', '/api/matches', null, people.owner.token);
         return all.status === 200 && all.data.find((m) => m.LostID === lost.LostID && m.FoundID === found.FoundID);
     });
     check('auto-match created a Pending match', !!match && match.MatchStatus === 'Pending', match ? `MatchID ${match.MatchID}` : 'none appeared within 15s');
@@ -202,7 +202,7 @@ async function main() {
     check('the finder cannot confirm the match (403)', finderConfirm.status === 403);
     const confirm = await call('PATCH', `/api/matches/${match.MatchID}/status`, { status: 'Confirmed' }, people.owner.token);
     check('the lost owner confirms the match', confirm.status === 200 && confirm.data.MatchStatus === 'Confirmed');
-    const lostAfterConfirm = await call('GET', `/api/lost-items/${lost.LostID}`);
+    const lostAfterConfirm = await call('GET', `/api/lost-items/${lost.LostID}`, null, people.owner.token);
     check('lost item is now Matched', lostAfterConfirm.data.Status === 'Matched');
     const ownerNotes = await call('GET', `/api/notifications/student/${people.owner.id}`, null, people.owner.token);
     const finderNotes = await call('GET', `/api/notifications/student/${people.finder.id}`, null, people.finder.token);
@@ -239,10 +239,10 @@ async function main() {
         (await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved' }, people.owner.token)).status === 403);
     const approve = await call('PUT', `/api/claims/${claimId}/status`, { claimStatus: 'Approved', verificationNotes: 'smoke test' }, adminToken);
     check('admin approves the claim', approve.status === 200 && approve.data.claim.ClaimStatus === 'Approved');
-    const foundAfter = await call('GET', `/api/found-items/${found.FoundID}`);
-    const lostAfter = await call('GET', `/api/lost-items/${lost.LostID}`);
+    const foundAfter = await call('GET', `/api/found-items/${found.FoundID}`, null, people.owner.token);
+    const lostAfter = await call('GET', `/api/lost-items/${lost.LostID}`, null, people.owner.token);
     check('found item is now Claimed', foundAfter.data.Status === 'Claimed');
-    check('lost item is now Closed', lostAfter.data.Status === 'Closed');
+    check('lost report stays Matched until collection', lostAfter.data.Status === 'Matched');
     const ownerNotesAfter = await call('GET', `/api/notifications/student/${people.owner.id}`, null, people.owner.token);
     check('claimant is notified the claim was approved',
         ownerNotesAfter.status === 200 && ownerNotesAfter.data.some((n) => n.MatchID === null && /was approved/.test(n.Message)));
@@ -261,6 +261,7 @@ async function main() {
         (await call('PUT', `/api/admin/found/${found.FoundID}/return`, null, people.owner.token)).status === 403);
     const returned = await call('PUT', `/api/admin/found/${found.FoundID}/return`, null, adminToken);
     check('admin marks the claimed found item Returned', returned.status === 200 && returned.data.item.Status === 'Returned');
+    check('pickup closes the lost report', (await call('GET', `/api/lost-items/${lost.LostID}`, null, people.owner.token)).data.Status === 'Closed');
     check('marking it Returned twice returns 409',
         (await call('PUT', `/api/admin/found/${found.FoundID}/return`, null, adminToken)).status === 409);
 
@@ -282,8 +283,8 @@ async function main() {
         const delFound = await call('DELETE', `/api/admin/found/${spamFoundId}`, null, adminToken);
         check('admin removes the spam found report', delFound.status === 200 && delFound.data.removed.claims === 0);
         check('removed reports are gone (404)',
-            (await call('GET', `/api/lost-items/${spamLostId}`)).status === 404
-            && (await call('GET', `/api/found-items/${spamFoundId}`)).status === 404);
+            (await call('GET', `/api/lost-items/${spamLostId}`, null, people.owner.token)).status === 404
+            && (await call('GET', `/api/found-items/${spamFoundId}`, null, people.owner.token)).status === 404);
     } else {
         check('create the spam reports for the removal check', false, `lost ${spamLost.status}, found ${spamFound.status}`);
     }

@@ -70,6 +70,10 @@ async function main() {
             }
         }
 
+        // Migrations without their own USE statement target the configured database.
+        if (!/\b(?:CREATE\s+DATABASE|USE\s+)/i.test(sql)) {
+            await conn.changeUser({ database: process.env.DB_NAME });
+        }
         await conn.query(sql);
         console.log(`OK: ran ${sqlArg} against ${process.env.DB_HOST}:${process.env.DB_PORT}`);
     } finally {

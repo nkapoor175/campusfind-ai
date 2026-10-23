@@ -9,6 +9,8 @@ export default function MatchCard({
   match,
   onConfirm,
   onReject,
+  claim,
+  foundStatus,
   onClaim,
   onViewItem,
   showActions = true,
@@ -149,7 +151,12 @@ export default function MatchCard({
         <div className="match-actions-footer">
           {match.MatchStatus === 'Confirmed' ? (
             <div className="confirmed-note">
-              <CheckCircle2 size={16} /> Match Confirmed — Proceed to Security for Claim Pickup
+              <CheckCircle2 size={16} />
+              {claim?.ClaimStatus === 'Pending' ? 'Ownership claim awaiting security review' :
+                claim?.ClaimStatus === 'Approved' ? (foundStatus === 'Returned' ? 'Collected — recovery complete' : 'Ready to collect at Campus Security with student ID') :
+                foundStatus !== 'Open' ? 'Item is no longer available' : (
+                  <Button variant="primary" size="sm" onClick={() => onClaim(match)}>File Ownership Claim</Button>
+                )}
             </div>
           ) : match.MatchStatus === 'Rejected' ? (
             <div className="rejected-note">

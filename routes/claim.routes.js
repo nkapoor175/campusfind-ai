@@ -18,4 +18,10 @@ router.get('/found/:foundId', authenticate, claimController.getClaimsByFoundItem
 // PUT /api/claims/:id/status - Admin updates claim status and verification notes (the admin comes from the token)
 router.put('/:id/status', requireAdmin, claimController.updateClaimStatus);
 
+router.put('/:id/notes', requireAdmin, async (req, res) => {
+  try {
+    if (!/^\d+$/.test(req.params.id) || Number(req.params.id) <= 0) return res.status(400).json({ message: 'Invalid claim ID' });
+    res.json(await require('../services/claim.service').updateClaimNotes(Number(req.params.id), req.body.verificationNotes));
+  } catch (err) { res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'Failed to save note' }); }
+});
 module.exports = router;

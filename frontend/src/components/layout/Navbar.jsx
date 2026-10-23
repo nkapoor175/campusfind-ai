@@ -162,11 +162,11 @@ export default function Navbar({ currentRoute, onNavigate }) {
                       type="button"
                       onClick={() => {
                         setUserDropdownOpen(false);
-                        handleNavClick('dashboard');
+                        handleNavClick(role === 'admin' ? 'admin-dashboard' : 'profile');
                       }}
                       className="dropdown-item"
                     >
-                      <User size={16} /> My Profile &amp; Reports
+                      <User size={16} /> {role === 'admin' ? 'Admin Dashboard' : 'My Profile & Reports'}
                     </button>
                     <button
                       type="button"

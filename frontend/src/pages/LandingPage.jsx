@@ -32,33 +32,8 @@ export default function LandingPage({ onNavigate }) {
 
     const fetchStats = async () => {
       try {
-        const [lostItems, foundItems, matches] = await Promise.all([
-          api.getLostItems(),
-          api.getFoundItems(),
-          api.getMatches(),
-        ]);
-
-        if (!isMounted) return;
-
-        const lostList = Array.isArray(lostItems) ? lostItems : [];
-        const foundList = Array.isArray(foundItems) ? foundItems : [];
-        const matchList = Array.isArray(matches) ? matches : [];
-
-        const totalReports = lostList.length + foundList.length;
-        const suggestedMatches = matchList.length;
-        const itemsReturned = foundList.filter(
-          (item) => item?.Status === 'Returned'
-        ).length;
-        const adminVerified = [...lostList, ...foundList].filter(
-          (item) => item?.AdminID !== null && item?.AdminID !== undefined
-        ).length;
-
-        setStats({
-          totalReports,
-          suggestedMatches,
-          itemsReturned,
-          adminVerified,
-        });
+        const data = await api.getStats();
+        if (isMounted) setStats(data);
       } catch (err) {
         console.error('Failed to load landing page stats:', err);
         if (isMounted) {

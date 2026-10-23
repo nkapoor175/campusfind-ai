@@ -14,24 +14,26 @@ function httpError(statusCode, message) {
 
 // GET /api/matches/candidates/:lostId - live-scored candidate found items for a lost item
 // Scores are computed on the fly (never stored - MatchScore is a derived value, not a column).
-router.get('/candidates/:lostId', async (req, res) => {
+router.get('/candidates/:lostId', authenticate, async (req, res) => {
     try {
         const [lostRows] = await pool.query('SELECT * FROM LOST_ITEM WHERE LostID = ?', [req.params.lostId]);
         if (lostRows.length === 0) {
             return res.status(404).json({ error: 'Lost item not found' });
         }
         const lostItem = lostRows[0];
+        if (req.user.role !== 'admin' && lostItem.StudentID !== req.user.studentId) return res.status(403).json({ error: 'Only the reporter may view candidates' });
+        if (!lostItem.AdminID || lostItem.Status !== 'Open') return res.json([]);
 
         // Only open found items that don't already have a confirmed match
         const [foundItems] = await pool.query(
             `SELECT f.*,
                     (SELECT i.ImageURL FROM FOUND_ITEM_IMAGE i WHERE i.FoundID = f.FoundID ORDER BY i.ImageURL LIMIT 1) AS ImageURL
              FROM FOUND_ITEM f
-             WHERE f.Status = 'Open'
+             WHERE f.Status = 'Open' AND f.AdminID IS NOT NULL AND f.StudentID <> ?
                AND NOT EXISTS (
                    SELECT 1 FROM MATCH_RECORD m
                    WHERE m.FoundID = f.FoundID AND m.MatchStatus = 'Confirmed'
-               )`
+               )`, [lostItem.StudentID]
         );
 
         // Text score for every candidate; photo score only for the best few (null when unavailable)
@@ -60,56 +62,32 @@ router.post('/', authenticate, async (req, res) => {
         return res.status(400).json({ error: 'lostId and foundId are required' });
     }
 
+    let connection;
     try {
-        const [lostRows] = await pool.query('SELECT LostID, Status FROM LOST_ITEM WHERE LostID = ?', [lostId]);
-        if (lostRows.length === 0) {
-            return res.status(404).json({ error: 'Lost item not found' });
-        }
-        if (lostRows[0].Status !== 'Open') {
-            return res.status(409).json({ error: 'Lost item is not open for matching' });
-        }
-
-        const [foundRows] = await pool.query('SELECT FoundID, Status FROM FOUND_ITEM WHERE FoundID = ?', [foundId]);
-        if (foundRows.length === 0) {
-            return res.status(404).json({ error: 'Found item not found' });
-        }
-        if (foundRows[0].Status !== 'Open') {
-            return res.status(409).json({ error: 'Found item is not open for matching' });
-        }
-
-        const [confirmed] = await pool.query(
-            "SELECT MatchID FROM MATCH_RECORD WHERE FoundID = ? AND MatchStatus = 'Confirmed' LIMIT 1",
-            [foundId]
-        );
-        if (confirmed.length > 0) {
-            return res.status(409).json({ error: 'Found item already has a confirmed match' });
-        }
-
-        const [existing] = await pool.query(
-            'SELECT MatchID FROM MATCH_RECORD WHERE LostID = ? AND FoundID = ? LIMIT 1',
-            [lostId, foundId]
-        );
-        if (existing.length > 0) {
-            return res.status(409).json({ error: 'A match record for this lost and found item already exists' });
-        }
-
-        const [result] = await pool.query(
-            'INSERT INTO MATCH_RECORD (LostID, FoundID) VALUES (?, ?)',
-            [lostId, foundId]
-        );
-
-        const [rows] = await pool.query('SELECT * FROM MATCH_RECORD WHERE MatchID = ?', [result.insertId]);
-        return res.status(201).json(rows[0]);
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+        const [[found]] = await connection.query('SELECT * FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE', [foundId]);
+        const [[lost]] = await connection.query('SELECT * FROM LOST_ITEM WHERE LostID = ? FOR UPDATE', [lostId]);
+        if (!lost || !found) throw httpError(404, 'Report not found');
+        if (req.user.role !== 'admin' && lost.StudentID !== req.user.studentId) throw httpError(403, 'Only the lost reporter may create a match');
+        if (lost.StudentID === found.StudentID) throw httpError(409, 'Cannot match your own found report');
+        if (lost.Status !== 'Open' || found.Status !== 'Open' || !lost.AdminID || !found.AdminID) throw httpError(409, 'Both reports must be verified and open');
+        const [existing] = await connection.query("SELECT MatchID FROM MATCH_RECORD WHERE (LostID = ? AND FoundID = ?) OR (FoundID = ? AND MatchStatus = 'Confirmed')", [lostId, foundId, foundId]);
+        if (existing.length) throw httpError(409, 'Pair already exists or found item is already matched');
+        const [result] = await connection.query('INSERT INTO MATCH_RECORD (LostID, FoundID) VALUES (?, ?)', [lostId, foundId]);
+        const [[match]] = await connection.query('SELECT * FROM MATCH_RECORD WHERE MatchID = ?', [result.insertId]);
+        await connection.commit();
+        return res.status(201).json(match);
     } catch (err) {
-        console.error('Create match error:', err);
-        return res.status(500).json({ error: 'Failed to create match record' });
-    }
+        if (connection) await connection.rollback();
+        return res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to create match' });
+    } finally { if (connection) connection.release(); }
 });
 
 // GET /api/matches - list all match records
-router.get('/', async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM MATCH_RECORD ORDER BY MatchID DESC');
+        const [rows] = await pool.query(`SELECT m.* FROM MATCH_RECORD m JOIN LOST_ITEM l ON l.LostID = m.LostID JOIN FOUND_ITEM f ON f.FoundID = m.FoundID ${req.user.role === 'admin' ? '' : 'WHERE l.StudentID = ? OR f.StudentID = ?'} ORDER BY m.MatchID DESC`, req.user.role === 'admin' ? [] : [req.user.studentId, req.user.studentId]);
         return res.status(200).json(rows);
     } catch (err) {
         console.error('List matches error:', err);
@@ -118,9 +96,9 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/matches/:id - get a match record by id
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM MATCH_RECORD WHERE MatchID = ?', [req.params.id]);
+        const [rows] = await pool.query(`SELECT m.* FROM MATCH_RECORD m JOIN LOST_ITEM l ON l.LostID = m.LostID JOIN FOUND_ITEM f ON f.FoundID = m.FoundID WHERE m.MatchID = ? ${req.user.role === 'admin' ? '' : 'AND (l.StudentID = ? OR f.StudentID = ?)'}`, req.user.role === 'admin' ? [req.params.id] : [req.params.id, req.user.studentId, req.user.studentId]);
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Match record not found' });
         }
@@ -163,6 +141,10 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        const [refs] = await connection.query('SELECT FoundID, LostID FROM MATCH_RECORD WHERE MatchID = ?', [req.params.id]);
+        if (!refs.length) throw httpError(404, 'Match record not found');
+        await connection.query('SELECT FoundID FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE', [refs[0].FoundID]);
+        await connection.query('SELECT LostID FROM LOST_ITEM WHERE LostID = ? FOR UPDATE', [refs[0].LostID]);
         const [rows] = await connection.query(
             'SELECT * FROM MATCH_RECORD WHERE MatchID = ? FOR UPDATE',
             [req.params.id]
@@ -178,6 +160,12 @@ router.patch('/:id/status', authenticate, async (req, res) => {
             throw httpError(403, 'Only the owner of the lost item or an admin can change this match');
         }
 
+        const [[availability]] = await connection.query('SELECT Status, AdminID FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE', [match.FoundID]);
+        const [[lostState]] = await connection.query('SELECT Status, AdminID FROM LOST_ITEM WHERE LostID = ? FOR UPDATE', [match.LostID]);
+        if (['Claimed', 'Returned', 'Closed'].includes(availability.Status) || lostState.Status === 'Closed') throw httpError(409, 'This recovery is no longer open for match changes');
+        if (status !== 'Rejected' && (!availability.AdminID || !lostState.AdminID)) throw httpError(409, 'Both reports must be verified');
+        const [activeClaims] = await connection.query("SELECT ClaimID FROM CLAIM WHERE FoundID = ? AND ClaimStatus IN ('Pending','Approved')", [match.FoundID]);
+        if (activeClaims.length && status !== match.MatchStatus) throw httpError(409, 'Resolve active claims with Campus Security first');
         const wasConfirmed = match.MatchStatus === 'Confirmed';
         becameConfirmed = status === 'Confirmed' && !wasConfirmed;
         const leftConfirmed = wasConfirmed && status !== 'Confirmed';

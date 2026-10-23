@@ -23,6 +23,18 @@ app.get('/health', async (req, res) => {
     }
 });
 
+// Public landing-page counts contain no report or student records.
+app.get('/api/stats', async (req, res) => {
+    try {
+        const [[stats]] = await pool.query(`SELECT
+          (SELECT COUNT(*) FROM LOST_ITEM) + (SELECT COUNT(*) FROM FOUND_ITEM) AS totalReports,
+          (SELECT COUNT(*) FROM MATCH_RECORD) AS suggestedMatches,
+          (SELECT COUNT(*) FROM FOUND_ITEM WHERE Status = 'Returned') AS itemsReturned,
+          (SELECT COUNT(*) FROM LOST_ITEM WHERE AdminID IS NOT NULL) + (SELECT COUNT(*) FROM FOUND_ITEM WHERE AdminID IS NOT NULL) AS adminVerified`);
+        res.json(stats);
+    } catch { res.status(500).json({ error: 'Statistics unavailable' }); }
+});
+
 app.use('/api/students', require('./routes/student'));
 app.use('/api/lost-items', require('./routes/lostItem'));
 app.use('/api/found-items', require('./routes/foundItem'));

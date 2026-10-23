@@ -21,7 +21,7 @@ export default function StatusBadge({ status, type = 'status', size = 'sm', clas
   } else if (normalized === 'confirmed' || normalized === 'approved' || normalized === 'returned') {
     badgeClass = 'badge-sage';
     Icon = CheckCircle2;
-    label = status === 'returned' ? 'Item Returned' : status;
+    label = normalized === 'returned' ? 'Item Returned' : status;
   } else if (normalized === 'claimed') {
     badgeClass = 'badge-blue';
     Icon = ArrowRightLeft;

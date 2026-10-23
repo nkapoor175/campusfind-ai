@@ -52,9 +52,18 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
       await api.updateClaimStatus(claimId, newStatus, notes);
       toast.success(`Claim #${claimId} marked as ${newStatus}`);
       loadClaims();
-    } catch {
-      toast.error('Failed to update claim status');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update claim status');
     }
+  };
+
+  const handleSaveNotes = async (claimId, notes) => {
+    try {
+      await api.saveClaimNotes(claimId, notes);
+      toast.success('Note saved');
+      await loadClaims();
+      return true;
+    } catch (err) { toast.error(err.message || 'Failed to save note'); return false; }
   };
 
   const handleReturnFoundItem = async (foundId) => {
@@ -129,6 +138,7 @@ export default function ClaimsPage({ onNavigate, onSelectItem }) {
                 claim={claim}
                 isAdmin={isAdmin}
                 onUpdateStatus={handleUpdateClaimStatus}
+                onSaveNotes={handleSaveNotes}
                 onViewItem={(item) => onSelectItem(item, 'found')}
                 onReturnItem={handleReturnFoundItem}
               />

@@ -12,15 +12,24 @@ export default function ClaimCard({
   onUpdateStatus,
   onViewItem,
   onReturnItem,
+  onSaveNotes,
 }) {
   const found = claim.foundItem || {};
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
   const [notes, setNotes] = useState(claim.VerificationNotes || '');
   const canEditNotes = isAdmin && claim.ClaimStatus === 'Pending';
 
+  const saveNotes = async () => {
+    setSavingNotes(true);
+    try {
+      if (await onSaveNotes?.(claim.ClaimID, notes)) setIsEditingNotes(false);
+    } finally { setSavingNotes(false); }
+  };
+
   const handleStatusChange = (status) => {
     if (onUpdateStatus) {
-      onUpdateStatus(claim.ClaimID, status, notes);
+      onUpdateStatus(claim.ClaimID, status, isEditingNotes ? notes : claim.VerificationNotes);
       setIsEditingNotes(false);
     }
   };
@@ -34,6 +43,8 @@ export default function ClaimCard({
         </div>
         <StatusBadge status={claim.ClaimStatus} />
       </div>
+
+      {claim.ClaimStatus === 'Approved' && <p role="status" style={{ marginBottom: '1rem' }}>{found.Status === 'Returned' ? 'Collected — recovery complete' : 'Ready to collect at Campus Security with student ID'}</p>}
 
       {/* Found Item Info */}
       <div
@@ -86,7 +97,7 @@ export default function ClaimCard({
           {canEditNotes && !isEditingNotes && (
             <button
               type="button"
-              onClick={() => setIsEditingNotes(true)}
+              onClick={() => { setNotes(claim.VerificationNotes || ''); setIsEditingNotes(true); }}
               className="edit-notes-btn"
             >
               <Edit3 size={12} /> Edit Note
@@ -102,19 +113,21 @@ export default function ClaimCard({
               placeholder="Add admin verification notes (e.g., ID verified, handed over)..."
               className="notes-textarea"
               rows={2}
+              maxLength={5000}
             />
             <div className="notes-edit-actions">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsEditingNotes(false)}
+                onClick={() => { setNotes(claim.VerificationNotes || ''); setIsEditingNotes(false); }}
               >
                 Cancel
               </Button>
               <Button
                 variant="sage"
                 size="sm"
-                onClick={() => setIsEditingNotes(false)}
+                onClick={saveNotes}
+                loading={savingNotes}
               >
                 Save Note
               </Button>
@@ -136,6 +149,7 @@ export default function ClaimCard({
                 variant="sage"
                 size="sm"
                 icon={CheckCircle}
+                disabled={savingNotes}
                 onClick={() => handleStatusChange('Approved')}
               >
                 Approve Claim
@@ -144,6 +158,7 @@ export default function ClaimCard({
                 variant="outline"
                 size="sm"
                 icon={XCircle}
+                disabled={savingNotes}
                 onClick={() => handleStatusChange('Rejected')}
               >
                 Reject Claim

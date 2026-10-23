@@ -15,6 +15,7 @@ import {
   Cpu,
   Layers
 } from 'lucide-react';
+import ReportActions from './ReportActions';
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 import Button from '../common/Button';
@@ -31,7 +32,7 @@ export default function ItemDetailModal({
   type = 'lost', // 'lost' | 'found'
   onClaimSubmitted,
 }) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const toast = useToast();
 
   const [heroImgFailed, setHeroImgFailed] = useState(false);
@@ -39,6 +40,8 @@ export default function ItemDetailModal({
   const [loadingCandidates, setLoadingCandidates] = useState(false);
 
   // Claim states for viewing a found item
+  const [myReports, setMyReports] = useState([]);
+  const [linkedLostId, setLinkedLostId] = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState(false);
 
@@ -66,7 +69,7 @@ export default function ItemDetailModal({
     setImageSimilarity(null);
     setShowAiDetails(false);
 
-    if (isOpen && item && isLost) {
+    if (isOpen && item && isLost && item.StudentID === user?.StudentID && item.AdminID && item.Status === 'Open') {
       setLoadingCandidates(true);
       
       // Check ML service health in background
@@ -110,7 +113,18 @@ export default function ItemDetailModal({
     } else {
       setCandidates([]);
     }
-  }, [isOpen, item, isLost]);
+  }, [isOpen, item, isLost, user?.StudentID]);
+
+  useEffect(() => {
+    let active = true;
+    if (isOpen && user?.StudentID && !isLost) {
+      api.getLostItemsByStudent(user.StudentID).then((reports) => {
+        if (active) setMyReports((reports || []).filter((report) => report.AdminID && ['Open', 'Matched'].includes(report.Status)));
+      }).catch(() => { if (active) setMyReports([]); });
+    }
+    setLinkedLostId('');
+    return () => { active = false; };
+  }, [isOpen, user?.StudentID, isLost, item?.FoundID]);
 
   if (!item) return null;
 
@@ -122,7 +136,7 @@ export default function ItemDetailModal({
     }
     setClaimLoading(true);
     try {
-      await api.createClaim(item.FoundID);
+      await api.createClaim(item.FoundID, linkedLostId ? Number(linkedLostId) : null);
       setClaimSuccess(true);
       toast.success('Ownership claim submitted to campus security!');
       if (onClaimSubmitted) onClaimSubmitted();
@@ -141,7 +155,7 @@ export default function ItemDetailModal({
     }
     setMatchedClaimLoading(true);
     try {
-      await api.createClaim(foundId);
+      await api.createClaim(foundId, item.LostID);
       setMatchedClaimSuccess(true);
       toast.success('Ownership claim submitted to campus security for matched item!');
       if (onClaimSubmitted) onClaimSubmitted();
@@ -163,6 +177,9 @@ export default function ItemDetailModal({
       maxWidth="720px"
     >
       <div className="item-detail-content">
+        {!item.AdminID && <p>Awaiting security verification. Matching and claims become available after verification.</p>}
+        {role === 'student' && item.StudentID === user?.StudentID && <ReportActions key={`${type}-${itemId}`} item={item} type={type} onUpdated={() => { onClose(); window.dispatchEvent(new Event('reports-updated')); }} />}
+
         {/* Large Media Hero: Real Photo mode or Cute Illustration mode */}
         <div className={`detail-media-wrap ${resolvedHeroImage ? 'has-photo' : 'has-illustration'}`}>
           {resolvedHeroImage ? (
@@ -256,7 +273,7 @@ export default function ItemDetailModal({
         {/* ==================================================
             AI MATCH PRESENTATION (For Lost Items)
             ================================================== */}
-        {isLost && (
+        {isLost && item.StudentID === user?.StudentID && item.AdminID && item.Status === 'Open' && (
           <div className="matches-section-wrap">
             <div className="matches-header">
               <div className="sparkle-badge animate-soft-pulse">
@@ -443,7 +460,7 @@ export default function ItemDetailModal({
         )}
 
         {/* Found Item Claim Action (For Found Items) */}
-        {!isLost && item.Status === 'Open' && (
+        {!isLost && item.Status === 'Open' && item.AdminID && role === 'student' && item.StudentID !== user?.StudentID && (
           <div className="claim-action-box">
             {claimSuccess ? (
               <div className="claim-success-banner">
@@ -457,6 +474,12 @@ export default function ItemDetailModal({
               <div className="claim-prompt-row">
                 <div>
                   <h4 className="claim-prompt-title">Is this your item?</h4>
+                  <label>Link your lost report (optional)
+                    <select value={linkedLostId} onChange={(e) => setLinkedLostId(e.target.value)}>
+                      <option value="">No related report</option>
+                      {myReports.map((report) => <option key={report.LostID} value={report.LostID}>{report.ItemName} (#{report.LostID})</option>)}
+                    </select>
+                  </label>
                   <p className="claim-prompt-desc">Submit an ownership claim to notify campus security for verification.</p>
                 </div>
                 <Button

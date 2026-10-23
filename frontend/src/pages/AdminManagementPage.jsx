@@ -298,7 +298,7 @@ export default function AdminManagementPage({ onSelectItem }) {
           />
           <div className="mgmt-status-chips">
             <span className="filter-label">Filter:</span>
-            {['All', 'Open', 'Pending', 'Matched', 'Claimed', 'Approved', 'Rejected'].map((st) => (
+            {['All', 'Open', 'Pending', 'Matched', 'Claimed', 'Returned', 'Closed', 'Approved', 'Rejected'].map((st) => (
               <button
                 key={st}
                 type="button"
@@ -557,7 +557,7 @@ export default function AdminManagementPage({ onSelectItem }) {
                                     Reject
                                   </Button>
                                 </>
-                              ) : claim.foundItem?.Status === 'Claimed' ? (
+                              ) : claim.ClaimStatus === 'Approved' && claim.foundItem?.Status === 'Claimed' ? (
                                 <Button
                                   variant="primary"
                                   size="sm"

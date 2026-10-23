@@ -19,10 +19,14 @@ import ReportFoundPage from './pages/ReportFoundPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ClaimsPage from './pages/ClaimsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import ProfilePage from './pages/ProfilePage';
 import AdminManagementPage from './pages/AdminManagementPage';
 
 const PRIVATE_ROUTES = [
   'dashboard',
+  'profile',
+  'lost-items',
+  'found-items',
   'claims',
   'notifications',
   'report-lost',
@@ -32,10 +36,10 @@ const PRIVATE_ROUTES = [
 ];
 
 function MainApp() {
-  const { user, token, logout } = useAuth();
+  const { user, token, role, logout } = useAuth();
   const isAuthenticated = Boolean(user && token);
   const toast = useToast();
-  const [currentRoute, setCurrentRoute] = useState('landing');
+  const [currentRoute, setCurrentRoute] = useState(() => window.location.hash.slice(1) || 'landing');
 
   // Modal State for Item Details
   const [selectedItem, setSelectedItem] = useState(null);
@@ -45,6 +49,7 @@ function MainApp() {
   useEffect(() => {
     const handleSessionExpired = (detail) => {
       logout();
+      window.location.hash = 'login';
       setCurrentRoute('login');
       const msg =
         (typeof detail === 'string' ? detail : detail?.detail?.message) ||
@@ -57,11 +62,19 @@ function MainApp() {
 
   useEffect(() => {
     if (!isAuthenticated && PRIVATE_ROUTES.includes(currentRoute)) {
+      window.location.hash = 'login';
       setCurrentRoute('login');
     }
   }, [isAuthenticated, currentRoute]);
 
+  useEffect(() => {
+    const syncRoute = () => setCurrentRoute(window.location.hash.slice(1) || 'landing');
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
+
   const handleNavigate = (route) => {
+    window.location.hash = route;
     // No auth check here: a login page calls this right after signing in, while its copy of
     // isAuthenticated is still stale. The render guard + effect above redirect unauthenticated users.
     setCurrentRoute(route);
@@ -79,6 +92,7 @@ function MainApp() {
       return <LoginPage onNavigate={handleNavigate} />;
     }
 
+    if (currentRoute.startsWith('admin-') && role !== 'admin') return <DashboardPage onNavigate={handleNavigate} onSelectItem={handleSelectItem} />;
     switch (currentRoute) {
       case 'landing':
         return <LandingPage onNavigate={handleNavigate} />;
@@ -86,6 +100,8 @@ function MainApp() {
         return <LoginPage onNavigate={handleNavigate} />;
       case 'register':
         return <RegisterPage onNavigate={handleNavigate} />;
+      case 'profile':
+        return <ProfilePage onNavigate={handleNavigate} />;
       case 'dashboard':
         return (
           <DashboardPage

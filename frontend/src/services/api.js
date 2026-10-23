@@ -508,12 +508,22 @@ export const api = {
     );
   },
 
+  async getStats() { return request('/api/stats'); },
+  async updateReport(type, id, changes) {
+    return request(`/api/${type}-items/${id}`, { method: 'PATCH', body: JSON.stringify(changes) });
+  },
+  async saveClaimNotes(id, verificationNotes) {
+    return request(`/api/claims/${id}/notes`, { method: 'PUT', body: JSON.stringify({ verificationNotes }) });
+  },
+  async updateProfile(changes) {
+    return request('/api/students/me', { method: 'PUT', body: JSON.stringify(changes) });
+  },
   // ---------------- CLAIMS ----------------
-  async createClaim(foundId) {
+  async createClaim(foundId, lostId = null) {
     return withFallback(
       () => request('/api/claims', {
         method: 'POST',
-        body: JSON.stringify({ foundId }),
+        body: JSON.stringify({ foundId, lostId }),
       }),
       () => {
         const found = localFoundItems.find((f) => String(f.FoundID) === String(foundId));

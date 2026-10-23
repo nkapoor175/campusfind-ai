@@ -1,3 +1,4 @@
+const { runAutoMatchForLostItem, runAutoMatchForFoundItem } = require('./autoMatchService');
 const fs = require('fs/promises');
 const path = require('path');
 const bcrypt = require('bcrypt');
@@ -48,11 +49,11 @@ async function loginAdmin(email, password) {
  */
 async function getPendingItems() {
   const [lostItems] = await pool.execute(
-    'SELECT * FROM LOST_ITEM WHERE AdminID IS NULL ORDER BY DateLost DESC, LostID DESC'
+    "SELECT * FROM LOST_ITEM WHERE AdminID IS NULL AND Status = 'Open' ORDER BY DateLost DESC, LostID DESC"
   );
 
   const [foundItems] = await pool.execute(
-    'SELECT * FROM FOUND_ITEM WHERE AdminID IS NULL ORDER BY DateFound DESC, FoundID DESC'
+    "SELECT * FROM FOUND_ITEM WHERE AdminID IS NULL AND Status = 'Open' ORDER BY DateFound DESC, FoundID DESC"
   );
 
   return {
@@ -80,7 +81,7 @@ async function verifyLostItem(lostId, adminId) {
 
   // Check if lost item exists and its current verification status
   const [itemRows] = await pool.execute(
-    'SELECT LostID, AdminID FROM LOST_ITEM WHERE LostID = ?',
+    'SELECT LostID, AdminID, Status FROM LOST_ITEM WHERE LostID = ?',
     [lostId]
   );
   if (itemRows.length === 0) {
@@ -90,8 +91,8 @@ async function verifyLostItem(lostId, adminId) {
   }
 
   const lostItem = itemRows[0];
-  if (lostItem.AdminID !== null) {
-    const error = new Error('Lost item is already verified');
+  if (lostItem.AdminID !== null || lostItem.Status !== 'Open') {
+    const error = new Error('Lost item is already verified or is not open');
     error.statusCode = 409;
     throw error;
   }
@@ -108,6 +109,7 @@ async function verifyLostItem(lostId, adminId) {
     [lostId]
   );
 
+  runAutoMatchForLostItem(lostId);
   return updatedRows[0];
 }
 
@@ -130,7 +132,7 @@ async function verifyFoundItem(foundId, adminId) {
 
   // Check if found item exists and its current verification status
   const [itemRows] = await pool.execute(
-    'SELECT FoundID, AdminID FROM FOUND_ITEM WHERE FoundID = ?',
+    'SELECT FoundID, AdminID, Status FROM FOUND_ITEM WHERE FoundID = ?',
     [foundId]
   );
   if (itemRows.length === 0) {
@@ -140,8 +142,8 @@ async function verifyFoundItem(foundId, adminId) {
   }
 
   const foundItem = itemRows[0];
-  if (foundItem.AdminID !== null) {
-    const error = new Error('Found item is already verified');
+  if (foundItem.AdminID !== null || foundItem.Status !== 'Open') {
+    const error = new Error('Found item is already verified or is not open');
     error.statusCode = 409;
     throw error;
   }
@@ -158,6 +160,7 @@ async function verifyFoundItem(foundId, adminId) {
     [foundId]
   );
 
+  runAutoMatchForFoundItem(foundId);
   return updatedRows[0];
 }
 
@@ -172,7 +175,7 @@ async function returnFoundItem(foundId) {
     await connection.beginTransaction();
 
     const [rows] = await connection.execute(
-      'SELECT Status FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE',
+      'SELECT Status, ItemName FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE',
       [foundId]
     );
     if (rows.length === 0) {
@@ -187,11 +190,15 @@ async function returnFoundItem(foundId) {
     }
 
     await connection.execute("UPDATE FOUND_ITEM SET Status = 'Returned' WHERE FoundID = ?", [foundId]);
+    await connection.execute("UPDATE LOST_ITEM SET Status = 'Closed' WHERE LostID IN (SELECT LostID FROM CLAIM WHERE FoundID = ? AND ClaimStatus = 'Approved')", [foundId]);
+    const [owners] = await connection.execute("SELECT StudentID FROM CLAIM WHERE FoundID = ? AND ClaimStatus = 'Approved'", [foundId]);
+    for (const owner of owners) await connection.execute('INSERT INTO NOTIFICATION (Message, StudentID) VALUES (?, ?)', [`Your item "${rows[0].ItemName}" was collected. Your claim is complete.`.slice(0, 500), owner.StudentID]);
     await connection.execute(
-      `UPDATE LOST_ITEM SET Status = 'Closed'
-       WHERE LostID IN (
-         SELECT LostID FROM MATCH_RECORD WHERE FoundID = ? AND MatchStatus = 'Confirmed'
-       )`,
+      `UPDATE LOST_ITEM l
+       JOIN MATCH_RECORD m ON m.LostID = l.LostID
+       JOIN CLAIM c ON c.FoundID = m.FoundID AND c.StudentID = l.StudentID AND c.ClaimStatus = 'Approved'
+       SET l.Status = 'Closed'
+       WHERE m.FoundID = ? AND m.MatchStatus = 'Confirmed'`,
       [foundId]
     );
 

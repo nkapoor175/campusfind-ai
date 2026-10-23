@@ -35,11 +35,21 @@ async function rankPairs(pairs) {
 }
 
 async function createPendingMatch(lost, found, score) {
-    const [result] = await pool.query(
-        "INSERT INTO MATCH_RECORD (LostID, FoundID, MatchStatus) VALUES (?, ?, 'Pending')",
-        [lost.LostID, found.FoundID]
-    );
-    const matchId = result.insertId;
+    const connection = await pool.getConnection();
+    let matchId;
+    try {
+        await connection.beginTransaction();
+        const [[currentFound]] = await connection.query('SELECT Status, AdminID FROM FOUND_ITEM WHERE FoundID = ? FOR UPDATE', [found.FoundID]);
+        const [[currentLost]] = await connection.query('SELECT Status, AdminID FROM LOST_ITEM WHERE LostID = ? FOR UPDATE', [lost.LostID]);
+        const [existing] = await connection.query("SELECT MatchID FROM MATCH_RECORD WHERE (LostID = ? AND FoundID = ?) OR (FoundID = ? AND MatchStatus = 'Confirmed')", [lost.LostID, found.FoundID, found.FoundID]);
+        if (!currentFound || !currentLost || currentFound.Status !== 'Open' || currentLost.Status !== 'Open' || !currentFound.AdminID || !currentLost.AdminID || existing.length) {
+            await connection.rollback(); return null;
+        }
+        const [result] = await connection.query("INSERT INTO MATCH_RECORD (LostID, FoundID, MatchStatus) VALUES (?, ?, 'Pending')", [lost.LostID, found.FoundID]);
+        matchId = result.insertId;
+        await connection.commit();
+    } catch (err) { await connection.rollback(); throw err; }
+    finally { connection.release(); }
     const pct = percent(score);
 
     // A failed notification must not undo the match record.
@@ -73,13 +83,13 @@ async function insertMissing(ranked, existing) {
 
 async function matchLostItem(lostId) {
     const [lostRows] = await pool.query('SELECT * FROM LOST_ITEM WHERE LostID = ?', [lostId]);
-    if (lostRows.length === 0 || lostRows[0].Status !== 'Open') return;
+    if (lostRows.length === 0 || (lostRows[0].Status !== 'Open' || !lostRows[0].AdminID)) return;
     const lostItem = lostRows[0];
 
     // Open found items from other students that don't already have a confirmed match
     const [foundItems] = await pool.query(
         `SELECT f.* FROM FOUND_ITEM f
-         WHERE f.Status = 'Open'
+         WHERE f.Status = 'Open' AND f.AdminID IS NOT NULL
            AND f.StudentID <> ?
            AND NOT EXISTS (
                SELECT 1 FROM MATCH_RECORD m
@@ -97,7 +107,7 @@ async function matchLostItem(lostId) {
 
 async function matchFoundItem(foundId) {
     const [foundRows] = await pool.query('SELECT * FROM FOUND_ITEM WHERE FoundID = ?', [foundId]);
-    if (foundRows.length === 0 || foundRows[0].Status !== 'Open') return;
+    if (foundRows.length === 0 || (foundRows[0].Status !== 'Open' || !foundRows[0].AdminID)) return;
     const foundItem = foundRows[0];
 
     const [confirmed] = await pool.query(
@@ -108,7 +118,7 @@ async function matchFoundItem(foundId) {
 
     // Open lost items from other students
     const [lostItems] = await pool.query(
-        "SELECT * FROM LOST_ITEM WHERE Status = 'Open' AND StudentID <> ?",
+        "SELECT * FROM LOST_ITEM WHERE Status = 'Open' AND AdminID IS NOT NULL AND StudentID <> ?",
         [foundItem.StudentID]
     );
 

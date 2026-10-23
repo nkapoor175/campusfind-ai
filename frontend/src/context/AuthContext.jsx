@@ -118,6 +118,10 @@ export function AuthProvider({ children }) {
         register,
         logout,
         switchRole,
+        updateUser: (updated) => {
+          setUser(updated);
+          localStorage.setItem('campusfind_user', JSON.stringify(updated));
+        },
       }}
     >
       {children}

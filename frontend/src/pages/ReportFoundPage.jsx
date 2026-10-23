@@ -23,6 +23,7 @@ export default function ReportFoundPage({ onNavigate }) {
     dateFound: new Date().toISOString().split('T')[0],
     foundLocation: 'Central Library',
   });
+  const [createdReport, setCreatedReport] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('idle');
@@ -31,6 +32,7 @@ export default function ReportFoundPage({ onNavigate }) {
   const [error, setError] = useState('');
 
   const handleChange = (field, value) => {
+    if (createdReport) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -69,7 +71,7 @@ export default function ReportFoundPage({ onNavigate }) {
     }
 
     try {
-      const createdItem = await api.createFoundItem({
+      const createdItem = createdReport || await api.createFoundItem({
         itemName: formData.itemName,
         category: formData.category,
         brand: formData.brand,
@@ -81,6 +83,7 @@ export default function ReportFoundPage({ onNavigate }) {
         imagePreview: imagePreview,
       });
 
+      setCreatedReport(createdItem);
       if (selectedFile && createdItem?.FoundID) {
         try {
           await api.uploadFoundImage(createdItem.FoundID, selectedFile);
@@ -89,6 +92,8 @@ export default function ReportFoundPage({ onNavigate }) {
           console.warn('Image upload note:', uploadErr);
           setUploadStatus('error');
           setUploadError(uploadErr.message || 'Image upload failed');
+          toast.error('Report saved, but the photo upload failed. Retry to upload without creating another report.');
+          return;
         }
       }
 
@@ -107,6 +112,7 @@ export default function ReportFoundPage({ onNavigate }) {
   return (
     <div className="report-found-page fade-in">
       <div className="app-container report-container-inner">
+        {createdReport && <p role="status">Report #{createdReport.FoundID} is saved. Retry the photo upload below, or return to your reports. Report details can be edited from its item view.</p>}
         <button
           type="button"
           onClick={() => onNavigate('dashboard')}

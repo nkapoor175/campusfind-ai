@@ -18,6 +18,8 @@ export default function FoundItemsPage({ onNavigate, onSelectItem }) {
 
   useEffect(() => {
     loadFoundItems();
+    window.addEventListener('reports-updated', loadFoundItems);
+    return () => window.removeEventListener('reports-updated', loadFoundItems);
   }, []);
 
   const loadFoundItems = async () => {
@@ -102,7 +104,7 @@ export default function FoundItemsPage({ onNavigate, onSelectItem }) {
           onSelectCategory={setSelectedCategory}
           statusFilter={statusFilter}
           onSelectStatus={setStatusFilter}
-          statusOptions={['All', 'Open', 'Claimed', 'Returned']}
+          statusOptions={['All', 'Open', 'Claimed', 'Returned', 'Closed']}
           sortBy={sortBy}
           onSelectSort={setSortBy}
         />

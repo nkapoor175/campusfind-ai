@@ -7,13 +7,14 @@ const claimService = require('../services/claim.service');
  */
 async function createClaim(req, res) {
   try {
-    const { foundId } = req.body;
+    const { foundId, lostId } = req.body;
+    if (lostId != null && (!Number.isInteger(Number(lostId)) || Number(lostId) <= 0)) return res.status(400).json({ message: 'Invalid lostId' });
 
-    if (foundId === undefined || foundId === null || isNaN(Number(foundId)) || Number(foundId) <= 0) {
+    if (foundId === undefined || foundId === null || !Number.isInteger(Number(foundId)) || Number(foundId) <= 0) {
       return res.status(400).json({ message: 'Invalid or missing foundId' });
     }
 
-    const newClaim = await claimService.createClaim(req.user.studentId, Number(foundId));
+    const newClaim = await claimService.createClaim(req.user.studentId, Number(foundId), lostId == null ? null : Number(lostId));
     return res.status(201).json({
       message: 'Claim submitted successfully',
       claim: newClaim,
@@ -99,6 +100,8 @@ async function updateClaimStatus(req, res) {
     if (isNaN(claimId) || claimId <= 0) {
       return res.status(400).json({ message: 'Invalid claim ID' });
     }
+
+    if (verificationNotes != null && (typeof verificationNotes !== 'string' || verificationNotes.length > 5000)) return res.status(400).json({ message: 'Notes must be text of at most 5000 characters' });
 
     const allowedStatuses = ['Approved', 'Rejected'];
     if (!claimStatus || !allowedStatuses.includes(claimStatus)) {

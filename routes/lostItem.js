@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../config/db');
-const { requireStudent } = require('../middleware/auth');
+const { requireStudent, authenticate } = require('../middleware/auth');
 const { runAutoMatchForLostItem } = require('../services/autoMatchService');
 
 const router = express.Router();
@@ -39,7 +39,7 @@ router.post('/', requireStudent, async (req, res) => {
 });
 
 // GET /api/lost-items - list all
-router.get('/', async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
     try {
         const [rows] = await pool.query(`${SELECT_ITEM} ORDER BY l.LostID DESC`);
         return res.status(200).json(rows);
@@ -50,7 +50,8 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/lost-items/student/:studentId - list by student
-router.get('/student/:studentId', async (req, res) => {
+router.get('/student/:studentId', authenticate, async (req, res) => {
+    if (req.user.role !== 'admin' && Number(req.params.studentId) !== req.user.studentId) return res.status(403).json({ error: 'Only your own reports are available here' });
     try {
         const [rows] = await pool.query(`${SELECT_ITEM} WHERE l.StudentID = ? ORDER BY l.LostID DESC`, [req.params.studentId]);
         return res.status(200).json(rows);
@@ -61,7 +62,7 @@ router.get('/student/:studentId', async (req, res) => {
 });
 
 // GET /api/lost-items/:id - get by id
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
     try {
         const [rows] = await pool.query(`${SELECT_ITEM} WHERE l.LostID = ?`, [req.params.id]);
         if (rows.length === 0) {
@@ -73,5 +74,7 @@ router.get('/:id', async (req, res) => {
         return res.status(500).json({ error: 'Failed to fetch lost item' });
     }
 });
+
+require('../services/reportLifecycle')(router, 'lost');
 
 module.exports = router;

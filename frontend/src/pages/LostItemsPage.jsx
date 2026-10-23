@@ -18,6 +18,8 @@ export default function LostItemsPage({ onNavigate, onSelectItem }) {
 
   useEffect(() => {
     loadLostItems();
+    window.addEventListener('reports-updated', loadLostItems);
+    return () => window.removeEventListener('reports-updated', loadLostItems);
   }, []);
 
   const loadLostItems = async () => {

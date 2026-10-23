@@ -43,6 +43,8 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
     if (studentId) {
       loadDashboardData();
     }
+    window.addEventListener('reports-updated', loadDashboardData);
+    return () => window.removeEventListener('reports-updated', loadDashboardData);
   }, [studentId]);
 
   const loadDashboardData = async () => {
@@ -110,7 +112,7 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
 
   const handleClaimMatch = async (match) => {
     try {
-      await api.createClaim(match.FoundID);
+      await api.createClaim(match.FoundID, match.LostID);
       toast.success('Ownership claim filed with Campus Security!');
       onNavigate('claims');
     } catch (err) {
@@ -220,7 +222,9 @@ export default function DashboardPage({ onNavigate, onSelectItem }) {
                 <MatchCard
                   key={match.MatchID}
                   match={match}
-                  showActions={myLostItems.some((item) => item.LostID === match.LostID)}
+                  claim={myClaims.find((claim) => claim.FoundID === match.FoundID && claim.ClaimStatus !== 'Rejected')}
+                  foundStatus={match.foundItem?.Status}
+                  showActions={myLostItems.some((item) => item.LostID === match.LostID) && (match.MatchStatus !== 'Pending' || (match.lostItem?.Status === 'Open' && match.foundItem?.Status === 'Open' && match.lostItem?.AdminID && match.foundItem?.AdminID))}
                   onConfirm={handleConfirmMatch}
                   onReject={handleRejectMatch}
                   onClaim={handleClaimMatch}

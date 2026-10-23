@@ -23,6 +23,7 @@ export default function ReportLostPage({ onNavigate }) {
     dateLost: new Date().toISOString().split('T')[0],
     lostLocation: 'Central Library',
   });
+  const [createdReport, setCreatedReport] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('idle');
@@ -31,6 +32,7 @@ export default function ReportLostPage({ onNavigate }) {
   const [error, setError] = useState('');
 
   const handleChange = (field, value) => {
+    if (createdReport) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -69,7 +71,7 @@ export default function ReportLostPage({ onNavigate }) {
     }
 
     try {
-      const createdItem = await api.createLostItem({
+      const createdItem = createdReport || await api.createLostItem({
         itemName: formData.itemName,
         category: formData.category,
         brand: formData.brand,
@@ -82,6 +84,7 @@ export default function ReportLostPage({ onNavigate }) {
       });
 
       // If an actual image file was selected, upload via backend upload endpoint
+      setCreatedReport(createdItem);
       if (selectedFile && createdItem?.LostID) {
         try {
           await api.uploadLostImage(createdItem.LostID, selectedFile);
@@ -90,10 +93,12 @@ export default function ReportLostPage({ onNavigate }) {
           console.warn('Image upload note:', uploadErr);
           setUploadStatus('error');
           setUploadError(uploadErr.message || 'Image upload failed');
+          toast.error('Report saved, but the photo upload failed. Retry to upload without creating another report.');
+          return;
         }
       }
 
-      toast.success('Lost item report created! AI is now actively scanning campus matches.');
+      toast.success('Lost item report created! It will enter matching after security verifies it.');
       onNavigate('lost-items');
     } catch (err) {
       setError(err.message || 'Failed to submit lost item report');
@@ -108,6 +113,7 @@ export default function ReportLostPage({ onNavigate }) {
   return (
     <div className="report-lost-page fade-in">
       <div className="app-container report-container-inner">
+        {createdReport && <p role="status">Report #{createdReport.LostID} is saved. Retry the photo upload below, or return to your reports. Report details can be edited from its item view.</p>}
         {/* Back Link */}
         <button
           type="button"

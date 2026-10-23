@@ -163,11 +163,11 @@ Admin passwords are stored as bcrypt hashes in `ADMIN.Password`. The demo admin 
 
 | Access | Endpoints |
 |---|---|
-| **Public** | `GET /health`, `POST /api/students/register`, `POST /api/students/login`, `POST /api/admin/login`, all `GET` lost/found item routes, `GET /api/matches*` (including `/candidates/:lostId`), `GET /api/uploads/*`, and the static `/uploads/*` photos |
-| **Student token only** | `GET /api/students/me`, `PUT /api/students/me`, `POST /api/lost-items`, `POST /api/found-items`, `POST /api/claims` |
-| **Any valid token** | `POST /api/matches` |
+| **Public** | `GET /health`, `GET /api/stats` (landing page counts only), `POST /api/students/register`, `POST /api/students/login`, `POST /api/admin/login`, `GET /api/uploads/*`, and the static `/uploads/*` photos |
+| **Any valid token** (student or admin) | all `GET` lost/found item routes, `GET /api/matches*`. A student can list only their own reports (`/student/:studentId`) and read only the matches they take part in; `/candidates/:lostId` is limited to the lost report's owner or an admin |
+| **Student token only** | `GET /api/students/me`, `PUT /api/students/me`, `POST /api/lost-items`, `POST /api/found-items`, `PATCH /api/lost-items/:id` and `PATCH /api/found-items/:id` (the reporter edits or closes an open report), `POST /api/claims` (body `{ foundId, lostId? }`) |
 | **Owner or admin** | `PATCH /api/matches/:id/status` (the lost item's owner), `POST /api/uploads/lost/:lostId` and `POST /api/uploads/found/:foundId` (the student who reported that item), `GET /api/notifications/student/:studentId` and `PUT /api/notifications/:id/read` (the notification's own student), `GET /api/claims/student/:studentId` (that student), `GET /api/claims/found/:foundId` (the student who reported that found item) |
-| **Admin token only** | `GET /api/admin/pending`, `PUT /api/admin/lost/:id/verify`, `PUT /api/admin/found/:id/verify`, `PUT /api/admin/found/:id/return`, `DELETE /api/admin/lost/:id`, `DELETE /api/admin/found/:id`, `GET /api/claims`, `PUT /api/claims/:id/status` |
+| **Admin token only** | `GET /api/admin/pending`, `PUT /api/admin/lost/:id/verify`, `PUT /api/admin/found/:id/verify`, `PUT /api/admin/found/:id/return`, `DELETE /api/admin/lost/:id`, `DELETE /api/admin/found/:id`, `GET /api/claims`, `PUT /api/claims/:id/notes`, `PUT /api/claims/:id/status` |
 
 Responses: no or invalid token is `401`; a valid token of the wrong role, or someone else's record, is `403`.
 
@@ -354,10 +354,10 @@ This **erases the whole local `campusfind_ai` database** and loads the demo data
 | Story | Records | Where it shows up |
 |---|---|---|
 | Matches waiting for review | Water Bottle with Steel Bottle, Wired Earphones with Earphones, Black Backpack with Black Wildcraft Backpack | Matches and notifications with a similarity percentage. The bottle pair uses the same photo on both sides, so its image score is 1.0 |
-| A confirmed match with a claim waiting | Hostel Room Keys with Keys with Red Tag, and Rohan's Pending claim | Log in as the admin and approve the claim: the found item becomes `Claimed` and the lost report `Closed` |
+| A confirmed match with a claim waiting | Hostel Room Keys with Keys with Red Tag, and Rohan's Pending claim | Log in as the admin and approve the claim: the found item becomes `Claimed` and the lost report stays `Matched`. Then **Mark as Returned**: the found item becomes `Returned` and the lost report `Closed` |
 | A finished story | Brown Leather Wallet with Brown Wallet: Parthvi's claim rejected, Ishita's approved, wallet `Returned`, lost report `Closed` | Claim history and the full status lifecycle |
 | A rejected match | Scientific Calculator with Casio Scientific Calculator | Shows the `Rejected` status |
-| Waiting for the admin | Lost: Backpack, Umbrella, Calculator. Found: Casio Scientific Calculator | The admin's pending-verification list |
+| Waiting for the admin | Lost: Umbrella, Calculator. Found: Casio Scientific Calculator | The admin's pending-verification list. A report is only matched after the admin verifies it |
 
 ### Live demo script (about 7 minutes)
 
@@ -365,12 +365,13 @@ Black headphones are deliberately **not** in the data, so a live report produces
 
 1. **Navika** (`navika@campus.edu`) reports a lost item: `Black Sony Headphones`, category `Electronics`, brand `Sony`, colour `Black`, description `black sony over ear headphones`, location `Library`, photo `demo/images/headphones.png`.
 2. **Kabir** (`kabir@campus.edu`, second window) reports a found item: `Sony Headphones`, `Electronics`, `Sony`, `Black`, description `black sony headphones found near the library`, location `Library`, the same photo.
-3. Within a second a **Pending match** appears with a notification for both (about 78% with the text and image services running). The text alone scores 0.63, below the 0.7 threshold, so it is the matching photos that push it over: a good moment to explain the blended score.
-4. Navika opens her matches and **confirms** it. The lost report becomes `Matched`.
-5. Navika files a **claim**. Log in as `admin@campus.edu`, verify the reports, **approve** the claim (found item `Claimed`, lost report `Closed`), then mark the item **returned**.
-6. Open the database (MySQL Workbench or the command line) and show `DESCRIBE MATCH_RECORD;`: there is no score column, because the score is derived, never stored.
-7. Stop the text service and report another pair: matching still works through the built-in scorer.
-8. In Postman, show a student getting `403` on an admin route.
+3. Nothing matches yet: a report is only matched after security has verified it. Log in as `admin@campus.edu` and click **Verify** on both reports.
+4. Within a second a **Pending match** appears for Navika with a notification for both students (about 78% with the text and image services running). The text alone scores 0.63, below the 0.7 threshold, so it is the matching photos that push it over: a good moment to explain the blended score.
+5. Navika **confirms** the match (the lost report becomes `Matched`) and clicks **File Ownership Claim**.
+6. The admin saves a verification note, **approves** the claim (found item `Claimed`), then clicks **Mark as Returned** (found item `Returned`, lost report `Closed`, and Navika is notified that collection is complete).
+7. Open the database (MySQL Workbench or the command line) and show `DESCRIBE MATCH_RECORD;`: there is no score column, because the score is derived, never stored.
+8. Stop the text service and report another pair: matching still works through the built-in scorer.
+9. In Postman, show a student getting `403` on an admin route, and a request without a token getting `401` on the item lists.
 
 Afterwards run `npm run demo:reset` to put everything back.
 

@@ -12,7 +12,7 @@
 --   Confirmed + claim open . lost keys <-> found keys (Rohan has a Pending claim for the admin to decide)
 --   Completed story ........ lost wallet <-> found wallet: claim approved, wallet Returned, lost report Closed
 --   Rejected match ......... lost calculator <-> found calculator
---   Unverified reports ..... backpack, umbrella and calculator reports wait for the admin's "verify"
+--   Unverified reports ..... lost umbrella, lost calculator and the found Casio calculator wait for the admin's "verify"
 --   Not in the data ........ black headphones: reserved for the LIVE demo (see README "Demo")
 --
 -- Photos: demo/images/*.png are copied into uploads/ by the reset script and referenced below.
@@ -34,7 +34,7 @@ INSERT INTO STUDENT (Name, Email, Phone, Department, Year, Hostel, Password) VAL
 INSERT INTO LOST_ITEM (ItemName, Category, Brand, Color, Description, DateLost, LostLocation, Status, StudentID, AdminID) VALUES
 ('Water Bottle', 'Accessories', 'Milton', 'Blue', 'Steel water bottle with a dented cap, has a college sticker on it', '2026-10-01', 'Library', 'Open', 1, 1),
 ('Wired Earphones', 'Electronics', 'boAt', 'Black', 'Black wired earphones in a small pouch', '2026-10-02', 'Canteen', 'Open', 2, 1),
-('Black Backpack', 'Bags', 'Wildcraft', 'Black', 'Black backpack with a laptop sleeve and a small football keychain', '2026-10-03', 'Auditorium', 'Open', 4, NULL),
+('Black Backpack', 'Bags', 'Wildcraft', 'Black', 'Black backpack with a laptop sleeve and a small football keychain', '2026-10-03', 'Auditorium', 'Open', 4, 1),
 ('Brown Leather Wallet', 'Accessories', 'Fastrack', 'Brown', 'Brown leather wallet with a college ID card and some cash', '2026-09-28', 'Canteen', 'Closed', 5, 1),
 ('Hostel Room Keys', 'Accessories', 'Yale', 'Silver', 'Bunch of three silver keys with a red tag', '2026-10-04', 'Sports Complex', 'Matched', 3, 1),
 ('Blue Umbrella', 'Accessories', NULL, 'Blue', 'Large blue umbrella with a wooden handle', '2026-10-05', 'Bus Stop', 'Open', 6, NULL),

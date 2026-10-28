@@ -146,7 +146,7 @@
           "name": "List Lost Items",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/lost-items",
               "host": ["{{baseUrl}}"],
@@ -163,7 +163,7 @@
           "name": "Get Lost Items by Student",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/lost-items/student/{{studentId}}",
               "host": ["{{baseUrl}}"],
@@ -180,7 +180,7 @@
           "name": "Get Lost Item by ID",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/lost-items/{{lostId}}",
               "host": ["{{baseUrl}}"],
@@ -224,7 +224,7 @@
           "name": "List Found Items",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/found-items",
               "host": ["{{baseUrl}}"],
@@ -241,7 +241,7 @@
           "name": "Get Found Items by Student",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/found-items/student/{{studentId}}",
               "host": ["{{baseUrl}}"],
@@ -258,7 +258,7 @@
           "name": "Get Found Item by ID",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/found-items/{{foundId}}",
               "host": ["{{baseUrl}}"],
@@ -280,7 +280,7 @@
           "name": "Get Match Candidates",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/matches/candidates/{{lostId}}",
               "host": ["{{baseUrl}}"],
@@ -319,7 +319,7 @@
           "name": "List Matches",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/matches",
               "host": ["{{baseUrl}}"],
@@ -336,7 +336,7 @@
           "name": "Get Match by ID",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}", "type": "text"}],
             "url": {
               "raw": "{{baseUrl}}/api/matches/{{matchId}}",
               "host": ["{{baseUrl}}"],
